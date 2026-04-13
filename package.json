@@ -1,0 +1,55 @@
+{
+  "name": "agent-contracts",
+  "version": "0.0.1",
+  "description": "Declarative YAML DSL toolkit for defining, validating, and rendering multi-agent development workflows",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agent-contracts": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "agent",
+    "multi-agent",
+    "workflow",
+    "yaml",
+    "dsl",
+    "validation",
+    "lint",
+    "prompt-rendering",
+    "handoff",
+    "typescript",
+    "ai-development"
+  ],
+  "author": "foo-ogawa",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/foo-ogawa/agent-contracts.git"
+  },
+  "homepage": "https://github.com/foo-ogawa/agent-contracts#readme",
+  "bugs": {
+    "url": "https://github.com/foo-ogawa/agent-contracts/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
