@@ -3,6 +3,6 @@ import { VERSION } from "../../src/index.js";
 
 describe("agent-contracts", () => {
   it("exports VERSION", () => {
-    expect(VERSION).toBe("0.0.1");
+    expect(VERSION).toBe("0.0.2");
   });
 });

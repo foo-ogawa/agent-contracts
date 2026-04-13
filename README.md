@@ -2,6 +2,50 @@
 
 A toolkit for declaratively defining multi-agent development workflows in **YAML DSL**, with static validation, linting, and prompt rendering.
 
+Designed for teams building multi-agent coding or review workflows that need static guarantees on agent roles, handoffs, and artifact ownership.
+
+## Quick Start
+
+Define your agents, tasks, and artifacts in a single YAML file:
+
+```yaml
+# agent-contracts.yaml
+version: 1
+system:
+  id: my-project
+  name: My Agent Workflow
+
+agents:
+  - id: architect
+    role_name: "Architect"
+    purpose: "Drive phases and delegate work"
+    can_invoke_agents: [implementer]
+
+  - id: implementer
+    role_name: "Implementer"
+    purpose: "Implement features based on specs"
+
+tasks:
+  - id: implement-feature
+    target_agent: implementer
+    allowed_from_agents: [architect]
+    phase: implement
+    input_artifacts: [spec-md]
+
+artifacts:
+  - id: spec-md
+    type: document
+    owner: architect
+    consumers: [implementer]
+```
+
+Then validate and render:
+
+```bash
+agent-contracts validate ./my-project
+agent-contracts render ./my-project --template-dir ./templates --output-dir ./rendered
+```
+
 ## Features
 
 - **Define agent responsibilities, permissions, and handoff relationships** in structured YAML
@@ -20,8 +64,8 @@ Just as OpenAPI represents "API contracts," agent-contracts expresses **the enti
 | Layer | Role | Defined in |
 |---|---|---|
 | **Agent** | Capability declaration and general behavioral spec of the execution entity | `agents` |
-| **Task** | Work type that can be delegated to an agent, with task-specific behavioral spec | `tasks` |
-| **Handoff** | A concrete delegation instance | Generated at runtime |
+| **Task** | A type of work that can be delegated to an agent, with task-specific behavioral spec | `tasks` |
+| **Handoff** | A concrete delegation instance (runtime object, not predefined in YAML) | Generated at runtime |
 
 ### Definition Inheritance and Override
 
@@ -32,7 +76,7 @@ base definition (shared team definition)
       → resolved YAML (final result)
 ```
 
-2-layer model. Priority: **project > base**
+Inheritance is currently modeled as two layers: base and project. Priority: **project > base**.
 
 ---
 
@@ -71,7 +115,7 @@ policies: []
 **Single-file format** — All sections in one YAML file:
 
 ```yaml
-# agentdef.yaml
+# agent-contracts.yaml
 version: 1
 system: { ... }
 agents: [...]
@@ -82,7 +126,7 @@ artifacts: [...]
 **Multi-file format** — Entry point references split files via `$ref`:
 
 ```yaml
-# agentdef.yaml
+# agent-contracts.yaml
 version: 1
 extends: "@agent-contracts/base-team"
 system:
@@ -261,7 +305,7 @@ agents:
       globs: ["**/*"]
 ```
 
-- `x-` properties pass through the schema validator (no type errors)
+- `x-` properties are ignored by the schema validator for type enforcement
 - Same merge rules and operators as standard properties apply during `extends` inheritance
 - Included in the Prompt Renderer template context
 
@@ -286,14 +330,14 @@ npx agent-contracts               # Direct execution
 | `agent-contracts lint [dir]` | Run semantic lint. Display diagnostics and control exit code by severity |
 | `agent-contracts render [dir]` | Generate prompt md from resolved YAML + Handlebars templates |
 | `agent-contracts render [dir] --check` | Drift check. Detect diffs without writing files; exit 1 if diffs found |
+| `agent-contracts check [dir]` | Run resolve → validate → lint → render --check in sequence (for CI) |
 
-### Render Command Options
+### Options for `render` / `check`
 
 | Option | Description |
 |---|---|
 | `--template-dir <path>` | Handlebars template directory (required) |
 | `--output-dir <path>` | Output directory (required) |
-| `agent-contracts check [dir]` | Run resolve → validate → lint → render --check in sequence (for CI) |
 
 ### Common Options
 
@@ -347,7 +391,7 @@ agent-contracts resolve ./project/ -o ./resolved.yaml
 
 ```text
 1. Define DSL in YAML
-   ├── agentdef.yaml (entry point; references base via extends)
+   ├── agent-contracts.yaml (entry point; references base via extends)
    └── agents.yaml, tasks.yaml, ... (for multi-file format)
 
 2. agent-contracts resolve
@@ -370,7 +414,7 @@ agent-contracts resolve ./project/ -o ./resolved.yaml
 
 ## Prompt Rendering
 
-Generates static md files from resolved YAML and Handlebars templates.
+Generates one static Markdown file per agent from resolved YAML and Handlebars templates. Files are written to the directory specified by `render --output-dir`. The output serves as the system prompt or instruction document for each agent, containing its responsibilities, constraints, available tools, and delegatable tasks — all derived from the YAML definitions.
 
 ### Template Context
 
@@ -424,7 +468,7 @@ agent-contracts separates validation into 3 layers.
 - Handoff payload shape validation
 - Naming conventions
 
-### B. Reference Resolution
+### B. Reference Integrity Checks
 
 - ID reference integrity across agents / tasks / artifacts / tools / validations
 - Existence check for owner, producers, editors, consumers references
