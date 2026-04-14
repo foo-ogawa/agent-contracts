@@ -408,7 +408,7 @@ agents:
   implementer:
     constraints:
       $append:
-        - "Import litedbmodel only via package path"
+        - "Use only approved external libraries"
 
   designer:
     role_name: "Designer"
