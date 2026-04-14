@@ -1,0 +1,8 @@
+role_name: Reviewer
+purpose: Reviews implementations
+can_read_artifacts: []
+can_write_artifacts: []
+can_execute_tools: []
+can_perform_validations: []
+can_invoke_agents: []
+can_return_handoffs: []

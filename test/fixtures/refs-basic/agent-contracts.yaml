@@ -1,0 +1,21 @@
+version: 1
+system:
+  id: refs-basic
+  name: Refs Basic Test
+  default_phase_order:
+    - implement
+
+agents:
+  inline-agent:
+    role_name: Inline Agent
+    purpose: Defined inline
+  $refs:
+    - "./external-agents.yaml"
+
+tasks: {}
+artifacts: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

@@ -1,0 +1,9 @@
+architect:
+  role_name: Architect
+  purpose: Drives phases and delegates work
+  can_read_artifacts: []
+  can_write_artifacts: []
+  can_execute_tools: []
+  can_perform_validations: []
+  can_invoke_agents: [implementer]
+  can_return_handoffs: []

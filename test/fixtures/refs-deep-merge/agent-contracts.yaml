@@ -1,0 +1,15 @@
+version: 1
+system:
+  id: refs-deep-merge
+  name: Refs Deep Merge Test
+  default_phase_order:
+    - implement
+$refs:
+  - "./agents-core.yaml"
+  - "./agents-constraints.yaml"
+tasks: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

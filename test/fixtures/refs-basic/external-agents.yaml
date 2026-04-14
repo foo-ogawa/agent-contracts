@@ -1,0 +1,6 @@
+architect:
+  role_name: Architect
+  purpose: Drives phases and delegates work
+implementer:
+  role_name: Implementer
+  purpose: Implements features

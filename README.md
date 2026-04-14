@@ -245,6 +245,7 @@ Design regressions become testable.
 * **Artifact ownership and lifecycle modeling**
 * **Config-driven prompt rendering**
 * **Inheritance with merge operators via `extends`**
+* **Flexible file splitting** via `$ref` (replacement) and `$refs` (import + deep-merge)
 * **JSON Schema for editor support and external tooling**
 * **CI-friendly workflow checks**
 
@@ -292,7 +293,7 @@ tasks: { ... }
 artifacts: { ... }
 ````
 
-### Multi-file format
+### Multi-file format (section-level `$ref`)
 
 ````yaml
 version: 1
@@ -311,6 +312,91 @@ handoff_types: { $ref: "./handoff-types.yaml" }
 workflow: { $ref: "./workflow.yaml" }
 policies: { $ref: "./policies.yaml" }
 ````
+
+### Per-entry `$ref`
+
+`$ref` can be used at any object position. This allows splitting individual entries into separate files:
+
+````yaml
+agents:
+  architect: { $ref: "./agents/architect.yaml" }
+  implementer: { $ref: "./agents/implementer.yaml" }
+  test-writer: { $ref: "./agents/test-writer.yaml" }
+````
+
+Each referenced file contains the agent definition directly (without the key):
+
+````yaml
+# agents/architect.yaml
+role_name: "Architect"
+purpose: "Drive phases and delegate work"
+can_invoke_agents: [implementer]
+````
+
+### Directory `$ref`
+
+When `$ref` points to a directory, all `*.yaml` / `*.yml` files in the directory are loaded and merged:
+
+````yaml
+agents: { $ref: "./agents/" }
+````
+
+Each file in the directory contains one or more keyed entries:
+
+````yaml
+# agents/architect.yaml
+architect:
+  role_name: "Architect"
+  purpose: "Drive phases and delegate work"
+````
+
+Files are loaded in alphabetical order. Conflicting leaf values across files result in an error.
+
+### `$refs` (import and merge)
+
+`$refs` imports multiple files and **deep-merges** them into the containing map.
+Unlike `$ref` (which replaces an object entirely), `$refs` allows mixing inline definitions with external files.
+
+````yaml
+agents:
+  inline-agent:
+    role_name: "Inline Agent"
+    purpose: "Defined right here"
+  $refs:
+    - "./agents/architect.yaml"
+    - "./agents/implementer.yaml"
+    - "./more-agents/"           # directories are also supported
+````
+
+Each referenced file uses the same keyed format:
+
+````yaml
+# agents/architect.yaml
+architect:
+  role_name: "Architect"
+  purpose: "Drive phases and delegate work"
+````
+
+`$refs` can also be used at the root level to compose a DSL from multiple aspect-oriented files:
+
+````yaml
+version: 1
+system:
+  id: my-project
+  name: My Agent Workflow
+  default_phase_order: [analyze, implement]
+$refs:
+  - "./agents-core.yaml"        # agents + artifacts definitions
+  - "./agents-constraints.yaml"  # constraints for the same agents
+  - "./tasks.yaml"
+````
+
+Overlapping map keys are deep-merged recursively. Conflicting leaf values (scalar or array) result in an error.
+
+| Directive | Type   | Behavior                                                 |
+| --------- | ------ | -------------------------------------------------------- |
+| `$ref`    | string | Replace the object at that position with file contents   |
+| `$refs`   | array  | Import files and deep-merge into the containing map      |
 
 ---
 

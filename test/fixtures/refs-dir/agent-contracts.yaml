@@ -1,0 +1,21 @@
+version: 1
+system:
+  id: refs-dir
+  name: Refs Directory Test
+  default_phase_order:
+    - implement
+
+agents:
+  $refs:
+    - "./agents/"
+  inline-agent:
+    role_name: Inline
+    purpose: Defined inline
+
+tasks: {}
+artifacts: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

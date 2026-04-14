@@ -1,0 +1,18 @@
+version: 1
+system:
+  id: nested-ref-system
+  name: Nested Ref Test
+  default_phase_order:
+    - implement
+
+agents:
+  implementer: { $ref: "./agents/implementer.yaml" }
+  reviewer: { $ref: "./agents/reviewer.yaml" }
+
+tasks: {}
+artifacts: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

@@ -1,0 +1,16 @@
+version: 1
+system:
+  id: dup-key-system
+  name: Duplicate Key Test
+  default_phase_order:
+    - implement
+
+agents: { $ref: "./agents/" }
+
+tasks: {}
+artifacts: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

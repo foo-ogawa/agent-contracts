@@ -1,0 +1,17 @@
+version: 1
+system:
+  id: refs-conflict
+  name: Refs Conflict Test
+  default_phase_order:
+    - implement
+agents:
+  $refs:
+    - "./file-a.yaml"
+    - "./file-b.yaml"
+tasks: {}
+artifacts: {}
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

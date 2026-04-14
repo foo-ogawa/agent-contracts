@@ -82,6 +82,105 @@ describe("loadDsl", () => {
     });
   });
 
+  describe("nested $ref (entry-level)", () => {
+    it("resolves per-entry $ref within agents", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "multifile-nested/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, Record<string, unknown>>;
+      expect(Object.keys(agents)).toHaveLength(2);
+      expect(agents["implementer"]["role_name"]).toBe("Implementer");
+      expect(agents["implementer"]["purpose"]).toBe("Implements features");
+      expect(agents["reviewer"]["role_name"]).toBe("Reviewer");
+      expect(agents["reviewer"]["purpose"]).toBe("Reviews implementations");
+    });
+  });
+
+  describe("directory $ref", () => {
+    it("loads all YAML files from directory and merges", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "multifile-dir/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, Record<string, unknown>>;
+      expect(Object.keys(agents).sort()).toEqual(["architect", "implementer"]);
+      expect(agents["architect"]["role_name"]).toBe("Architect");
+      expect(agents["architect"]["can_invoke_agents"]).toEqual(["implementer"]);
+      expect(agents["implementer"]["role_name"]).toBe("Implementer");
+    });
+
+    it("errors on duplicate keys across files in directory", async () => {
+      await expect(
+        loadDsl(join(fixturesDir, "multifile-dir-duplicate/agent-contracts.yaml")),
+      ).rejects.toThrow(DslLoadError);
+      await expect(
+        loadDsl(join(fixturesDir, "multifile-dir-duplicate/agent-contracts.yaml")),
+      ).rejects.toThrow("Conflicting value");
+    });
+  });
+
+  describe("$refs (import + merge)", () => {
+    it("merges inline entries with external file", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "refs-basic/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, Record<string, unknown>>;
+      expect(Object.keys(agents).sort()).toEqual([
+        "architect",
+        "implementer",
+        "inline-agent",
+      ]);
+      expect(agents["inline-agent"]["role_name"]).toBe("Inline Agent");
+      expect(agents["architect"]["role_name"]).toBe("Architect");
+      expect(agents["implementer"]["role_name"]).toBe("Implementer");
+    });
+
+    it("$refs key is removed from output", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "refs-basic/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, unknown>;
+      expect("$refs" in agents).toBe(false);
+    });
+
+    it("deep-merges same keys across files at root level", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "refs-deep-merge/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, Record<string, unknown>>;
+      expect(agents["architect"]["role_name"]).toBe("Architect");
+      expect(agents["architect"]["purpose"]).toBe("Drives phases");
+      expect(agents["architect"]["constraints"]).toEqual(["Never write code directly"]);
+      expect(agents["implementer"]["role_name"]).toBe("Implementer");
+      expect(agents["implementer"]["constraints"]).toEqual(["Follow spec strictly"]);
+
+      const artifacts = result.data["artifacts"] as Record<string, Record<string, unknown>>;
+      expect(artifacts["spec-md"]["type"]).toBe("document");
+    });
+
+    it("loads directory entries in $refs list", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "refs-dir/agent-contracts.yaml"),
+      );
+      const agents = result.data["agents"] as Record<string, Record<string, unknown>>;
+      expect(Object.keys(agents).sort()).toEqual([
+        "architect",
+        "implementer",
+        "inline-agent",
+      ]);
+      expect(agents["architect"]["purpose"]).toBe("Drives phases and delegates work");
+      expect(agents["inline-agent"]["role_name"]).toBe("Inline");
+    });
+
+    it("errors on conflicting leaf values across $refs files", async () => {
+      await expect(
+        loadDsl(join(fixturesDir, "refs-conflict/agent-contracts.yaml")),
+      ).rejects.toThrow(DslLoadError);
+      await expect(
+        loadDsl(join(fixturesDir, "refs-conflict/agent-contracts.yaml")),
+      ).rejects.toThrow("Conflicting value");
+    });
+  });
+
   describe("version check", () => {
     it("rejects missing version", async () => {
       await expect(

@@ -1,0 +1,15 @@
+agents:
+  architect:
+    role_name: Architect
+    purpose: Drives phases
+  implementer:
+    role_name: Implementer
+    purpose: Implements features
+artifacts:
+  spec-md:
+    type: document
+    owner: architect
+    producers: [architect]
+    editors: [architect]
+    consumers: [implementer]
+    states: [draft, approved]

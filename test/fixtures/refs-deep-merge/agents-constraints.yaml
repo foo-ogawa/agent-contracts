@@ -1,0 +1,7 @@
+agents:
+  architect:
+    constraints:
+      - Never write code directly
+  implementer:
+    constraints:
+      - Follow spec strictly
