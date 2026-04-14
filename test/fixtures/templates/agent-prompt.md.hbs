@@ -31,3 +31,27 @@
 - **{{this.agent}}**: {{this.condition}}
 {{/each}}
 {{/if}}
+
+{{#if (notEmpty relatedArtifacts)}}
+## Related Artifacts
+
+{{#each relatedArtifacts}}
+- **{{@key}}** ({{this.type}})
+{{/each}}
+{{/if}}
+
+{{#if (notEmpty relatedTools)}}
+## Available Tools
+
+{{#each relatedTools}}
+- **{{@key}}** ({{this.kind}})
+{{/each}}
+{{/if}}
+
+{{#if (notEmpty relatedHandoffTypes)}}
+## Handoff Types
+
+{{#each relatedHandoffTypes}}
+### {{@key}} (v{{this.version}})
+{{/each}}
+{{/if}}

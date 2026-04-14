@@ -62,6 +62,35 @@ describe("buildPerAgentContext", () => {
     expect(ctx.mergedBehavior.completion_criteria.length).toBeGreaterThan(0);
   });
 
+  it("preserves example field on relatedHandoffTypes entries", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: {
+        a1: {
+          role_name: "R",
+          purpose: "P",
+          can_return_handoffs: ["ht-with-ex", "ht-without-ex"],
+        },
+      },
+      handoff_types: {
+        "ht-with-ex": {
+          version: 1,
+          payload: { type: "object", properties: { x: { type: "string" } } },
+          example: { x: "hello" },
+        },
+        "ht-without-ex": {
+          version: 1,
+          payload: { type: "object", properties: { y: { type: "number" } } },
+        },
+      },
+    });
+    const agent = { ...dsl.agents["a1"], id: "a1" };
+    const ctx = buildPerAgentContext(dsl, agent);
+    expect(ctx.relatedHandoffTypes["ht-with-ex"].example).toEqual({ x: "hello" });
+    expect(ctx.relatedHandoffTypes["ht-without-ex"].example).toBeUndefined();
+  });
+
   it("rules merge: task rule with same id overrides agent rule", () => {
     const dsl = DslSchema.parse({
       version: 1,
@@ -167,6 +196,45 @@ describe("renderFromConfig", () => {
     const content = readFileSync(twFile!, "utf8");
     expect(content).not.toContain("Identity");
     expect(content).not.toContain("Role Selection Guide");
+  });
+
+  it("renders relatedArtifacts / relatedTools / relatedHandoffTypes sections via notEmpty helper", async () => {
+    const targets: ResolvedRenderTarget[] = [
+      agentTarget(
+        join(templateDir, "agent-prompt.md.hbs"),
+        join(outputDir, "{agent.id}.md"),
+      ),
+    ];
+    const files = await renderFromConfig(fullDsl, targets);
+    const archFile = files.find((f) => f.includes("main-architect"));
+    expect(archFile).toBeDefined();
+    const content = readFileSync(archFile!, "utf8");
+
+    expect(content).toContain("## Related Artifacts");
+    expect(content).toContain("**spec-md**");
+    expect(content).toContain("## Available Tools");
+    expect(content).toContain("**gh-pr-inspect**");
+    expect(content).toContain("## Handoff Types");
+    expect(content).toContain("### evidence-gate-verdict (v1)");
+  });
+
+  it("omits relatedArtifacts section when agent has no related artifacts", async () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: { a1: { role_name: "R", purpose: "P" } },
+    });
+    const targets: ResolvedRenderTarget[] = [
+      agentTarget(
+        join(templateDir, "agent-prompt.md.hbs"),
+        join(outputDir, "{agent.id}.md"),
+      ),
+    ];
+    const files = await renderFromConfig(dsl, targets);
+    const content = readFileSync(files[0], "utf8");
+    expect(content).not.toContain("## Related Artifacts");
+    expect(content).not.toContain("## Available Tools");
+    expect(content).not.toContain("## Handoff Types");
   });
 });
 

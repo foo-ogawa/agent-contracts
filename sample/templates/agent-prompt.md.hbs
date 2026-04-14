@@ -1,3 +1,39 @@
+{{!--
+  Template: agent-prompt.md.hbs
+  Context:  PerAgentContext (context: "agent")
+
+  Available variables:
+    agent                - Agent object with id, role_name, purpose, mode, dispatch_only,
+                           can_read_artifacts, can_write_artifacts, can_execute_tools,
+                           can_invoke_agents, can_return_handoffs, responsibilities,
+                           constraints, rules, anti_patterns, escalation_criteria,
+                           prerequisites, and any x-* extension properties
+    receivableTasks      - Array of tasks where target_agent == this agent (each has id)
+    delegatableTasks     - Array of tasks this agent can invoke on other agents
+                           (id, description, target_agent, workflow, input_artifacts,
+                            invocation_handoff, result_handoff,
+                            invocation_payload_keys, result_payload_keys)
+    relatedArtifacts     - Record<id, Artifact> this agent can read/write
+    relatedTools         - Record<id, Tool> this agent can execute
+    relatedHandoffTypes  - Record<kind, HandoffType> related to this agent's tasks/handoffs
+    mergedBehavior       - Agent + all receivable tasks merged:
+                           responsibilities, constraints, rules, anti_patterns,
+                           escalation_criteria, execution_steps, completion_criteria
+    dsl                  - Full DSL object for cross-referencing
+
+  Custom helpers:
+    notEmpty             - {{#if (notEmpty obj)}} — true when obj has at least one key
+    inc                  - {{inc @index}} — 1-based index (0 → 1, 1 → 2, ...)
+    eq                   - {{#if (eq a b)}} — strict equality
+    yamlBlock            - {{{yamlBlock obj}}} — render object as YAML text
+    lookupPayloadFields  - {{#each (lookupPayloadFields payload)}} — extract field info
+
+  Notes:
+    - Record objects (relatedArtifacts, relatedTools, relatedHandoffTypes) use
+      {{@key}} to access the record key and {{this.*}} for properties.
+    - Use (notEmpty ...) instead of .length to check if a Record has entries.
+    - Arrays (receivableTasks, delegatableTasks) support .length directly.
+--}}
 # Role: {{agent.role_name}}
 
 {{agent.purpose}}
@@ -52,7 +88,7 @@
 {{#if this.execution_steps}}
 - **Execution steps**:
 {{#each this.execution_steps}}
-  {{@number}}. {{this.action}}{{#if this.uses_tool}} (uses: `{{this.uses_tool}}`){{/if}}{{#if this.required}} ★{{/if}}
+  {{inc @index}}. {{this.action}}{{#if this.uses_tool}} (uses: `{{this.uses_tool}}`){{/if}}{{#if this.required}} ★{{/if}}
 {{/each}}
 {{/if}}
 {{#if this.completion_criteria}}
@@ -63,5 +99,48 @@
 {{/if}}
 - **Result handoff**: {{this.result_handoff}}
 
+{{/each}}
+{{/if}}
+
+{{#if (notEmpty relatedArtifacts)}}
+## Related Artifacts
+
+{{#each relatedArtifacts}}
+- **{{@key}}** ({{this.type}}): {{this.description}}
+{{/each}}
+{{/if}}
+
+{{#if (notEmpty relatedTools)}}
+## Available Tools
+
+{{#each relatedTools}}
+- **{{@key}}** ({{this.kind}}): {{this.description}}
+{{/each}}
+{{/if}}
+
+{{#if (notEmpty relatedHandoffTypes)}}
+## Handoff Types
+
+{{#each relatedHandoffTypes}}
+### {{@key}} (v{{this.version}})
+
+{{#if this.description}}
+{{this.description}}
+
+{{/if}}
+{{#if this.payload}}
+**Payload:**
+
+```yaml
+{{{yamlBlock this.payload}}}
+```
+{{/if}}
+{{#if this.example}}
+**Example:**
+
+```yaml
+{{{yamlBlock this.example}}}
+```
+{{/if}}
 {{/each}}
 {{/if}}

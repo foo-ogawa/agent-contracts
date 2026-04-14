@@ -1,3 +1,32 @@
+{{!--
+  Template: overview.md.hbs
+  Context:  SystemContext (context: "system")
+
+  Available variables:
+    system               - System object with id, name, default_workflow_order,
+                           default_phase_order, and any x-* extension properties
+    dsl                  - Full DSL object containing all entities:
+      dsl.agents           Record<id, Agent>
+      dsl.tasks            Record<id, Task>
+      dsl.artifacts        Record<id, Artifact>
+      dsl.tools            Record<id, Tool>
+      dsl.validations      Record<id, Validation>
+      dsl.handoff_types    Record<kind, HandoffType>
+      dsl.workflow         Record<id, Workflow>
+      dsl.policies         Record<id, Policy>
+
+  Custom helpers:
+    notEmpty             - {{#if (notEmpty obj)}} — true when obj has at least one key
+    inc                  - {{inc @index}} — 1-based index (0 → 1, 1 → 2, ...)
+    eq                   - {{#if (eq a b)}} — strict equality
+    yamlBlock            - {{{yamlBlock obj}}} — render object as YAML text
+    lookupPayloadFields  - {{#each (lookupPayloadFields payload)}} — extract field info
+
+  Notes:
+    - All dsl.* entries are Record objects. Use {{@key}} to get the entity id
+      and {{this.*}} for properties inside {{#each}}.
+    - Use (notEmpty dsl.xxx) instead of dsl.xxx.length to check for entries.
+--}}
 # {{system.name}}
 
 ## Phases
@@ -29,3 +58,13 @@
 {{#each dsl.tools}}
 | {{@key}} | {{this.kind}} | {{this.description}} |
 {{/each}}
+
+{{#if (notEmpty dsl.handoff_types)}}
+## Handoff Types
+
+| Kind | Version | Description |
+|------|---------|-------------|
+{{#each dsl.handoff_types}}
+| {{@key}} | v{{this.version}} | {{this.description}} |
+{{/each}}
+{{/if}}

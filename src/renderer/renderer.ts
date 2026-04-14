@@ -17,6 +17,13 @@ import {
 
 Handlebars.registerHelper("eq", (a: unknown, b: unknown) => a === b);
 
+Handlebars.registerHelper("notEmpty", (obj: unknown) => {
+  if (!obj || typeof obj !== "object") return false;
+  return Object.keys(obj as Record<string, unknown>).length > 0;
+});
+
+Handlebars.registerHelper("inc", (val: number) => val + 1);
+
 interface PayloadFieldInfo {
   name: string;
   type: string;
