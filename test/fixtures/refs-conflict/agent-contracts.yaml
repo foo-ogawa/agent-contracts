@@ -2,7 +2,7 @@ version: 1
 system:
   id: refs-conflict
   name: Refs Conflict Test
-  default_phase_order:
+  default_workflow_order:
     - implement
 agents:
   $refs:

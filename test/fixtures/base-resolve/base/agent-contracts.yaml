@@ -2,7 +2,7 @@ version: 1
 system:
   id: base-system
   name: Base System
-  default_phase_order: [analyze, implement]
+  default_workflow_order: [analyze, implement]
 
 agents:
   implementer:
@@ -20,7 +20,7 @@ tasks:
     description: Implement from spec
     target_agent: implementer
     allowed_from_agents: [implementer]
-    phase: implement
+    workflow: implement
     input_artifacts: [codebase]
     invocation_handoff: task-delegation
     result_handoff: dependency-evidence

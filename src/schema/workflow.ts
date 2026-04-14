@@ -3,26 +3,29 @@ import { z } from "zod";
 const WorkflowHandoffStepSchema = z
   .object({
     type: z.literal("handoff"),
+    description: z.string().optional(),
     handoff_kind: z.string(),
     task: z.string().optional(),
     from_agent: z.string().optional(),
   })
-  .strict();
+  .passthrough();
 
 const WorkflowValidationStepSchema = z
   .object({
     type: z.literal("validation"),
+    description: z.string().optional(),
     validation: z.string(),
   })
-  .strict();
+  .passthrough();
 
 const WorkflowDecisionStepSchema = z
   .object({
     type: z.literal("decision"),
+    description: z.string().optional(),
     on: z.string(),
     branches: z.record(z.string(), z.array(z.string())),
   })
-  .strict();
+  .passthrough();
 
 export const WorkflowStepSchema = z.discriminatedUnion("type", [
   WorkflowHandoffStepSchema,
@@ -34,6 +37,7 @@ export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 export const WorkflowSchema = z
   .object({
     entry_conditions: z.array(z.string()).default([]),
+    trigger: z.string().optional(),
     steps: z.array(WorkflowStepSchema),
   })
   .passthrough();

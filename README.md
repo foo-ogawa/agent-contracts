@@ -119,7 +119,7 @@ version: 1
 system:
   id: my-project
   name: My Agent Workflow
-  default_phase_order: [design, implement]
+  default_workflow_order: [design, implement]
 
 agents:
   architect:
@@ -136,7 +136,7 @@ tasks:
     description: "Delegate feature implementation"
     target_agent: implementer
     allowed_from_agents: [architect]
-    phase: implement
+    workflow: implement
     input_artifacts: [spec-md]
     invocation_handoff: task-delegation
     result_handoff: implementation-result
@@ -187,7 +187,7 @@ A **Task** defines a delegatable unit of work:
 
 * target agent
 * allowed callers
-* phase
+* workflow
 * input artifacts
 * invocation/result handoffs
 * task-specific execution expectations
@@ -262,7 +262,7 @@ extends: "./base/"
 system:
   id: my-project
   name: My Agent Workflow
-  default_phase_order:
+  default_workflow_order:
     - analyze
     - specify
     - plan
@@ -301,7 +301,7 @@ extends: "./base/"
 system:
   id: my-project
   name: My Agent Workflow
-  default_phase_order: [analyze, specify, plan, implement, audit, release, reflect]
+  default_workflow_order: [analyze, specify, plan, implement, audit, release, reflect]
 
 agents: { $ref: "./agents.yaml" }
 tasks: { $ref: "./tasks.yaml" }
@@ -384,7 +384,7 @@ version: 1
 system:
   id: my-project
   name: My Agent Workflow
-  default_phase_order: [analyze, implement]
+  default_workflow_order: [analyze, implement]
 $refs:
   - "./agents-core.yaml"        # agents + artifacts definitions
   - "./agents-constraints.yaml"  # constraints for the same agents
@@ -446,7 +446,7 @@ tasks:
     target_agent: implementer
     allowed_from_agents:
       - main-architect
-    phase: implement
+    workflow: implement
     input_artifacts:
       - spec-md
       - plan-md
@@ -457,14 +457,20 @@ tasks:
     execution_steps:
       - id: read-specs
         action: "Read spec-md and design-docs"
+        description: "Read all relevant specification and design documents"
       - id: implement
         action: "Implement changes in codebase"
       - id: run-db-lint
         action: "Run db-lint"
+        description: "Run database schema linter to check migrations"
         uses_tool: db-lint
+        x-timeout: 120
     completion_criteria:
       - "canonical artifacts updated"
 ````
+
+`x-` prefixed custom properties work at any nesting level — including inside
+`execution_steps`, `rules`, `workflow.steps`, and other nested objects.
 
 ---
 
@@ -605,7 +611,9 @@ Checks:
 * types
 * enums
 * handoff payload shape
-* invalid custom properties without `x-` prefix
+* invalid custom properties without `x-` prefix (checked at all nesting levels)
+
+Custom properties with `x-` prefix are allowed on any object in the DSL — top-level entities (agents, tasks, artifacts, …), nested objects (rules, execution steps, workflow steps, …), and the root DSL itself.
 
 ### Reference integrity
 

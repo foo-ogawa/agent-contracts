@@ -39,7 +39,7 @@ function loadYaml(relativePath: string): unknown {
 const minimalValidSystem = {
   id: "sys",
   name: "System",
-  default_phase_order: ["a", "b"],
+  default_workflow_order: ["a", "b"],
 };
 
 const minimalValidAgent = {
@@ -51,7 +51,7 @@ const minimalValidTask = {
   description: "Do work",
   target_agent: "agent-1",
   allowed_from_agents: ["agent-1"],
-  phase: "implement",
+  workflow: "implement",
   input_artifacts: ["art-1"],
   invocation_handoff: "h-in",
   result_handoff: "h-out",
@@ -103,7 +103,7 @@ const minimalValidWorkflow = {
 };
 
 const minimalValidPolicy = {
-  when: { phase: "implement" },
+  when: { workflow: "implement" },
 };
 
 describe("schema normal cases", () => {
@@ -158,7 +158,7 @@ describe("boundary values", () => {
       SystemSchema.parse({
         id: "",
         name: "",
-        default_phase_order: [],
+        default_workflow_order: [],
       }),
     ).not.toThrow();
     const agent = AgentSchema.parse({
@@ -309,13 +309,13 @@ describe("WorkflowStepSchema discriminated union", () => {
     }
   });
 
-  it("rejects handoff step with unknown keys (strict nested shape)", () => {
+  it("passes through unknown keys on handoff step (validated by schema-validator)", () => {
     const r = WorkflowStepSchema.safeParse({
       type: "handoff",
       handoff_kind: "k",
       extra: 1,
     });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
   });
 });
 
@@ -338,7 +338,7 @@ describe("schema error cases", () => {
     const r = TaskSchema.safeParse({
       target_agent: "a",
       allowed_from_agents: [],
-      phase: "p",
+      workflow: "p",
       input_artifacts: [],
       invocation_handoff: "i",
       result_handoff: "r",
@@ -446,43 +446,71 @@ describe("x- prefix passthrough on passthrough schemas", () => {
   });
 });
 
-describe(".strict() nested schemas reject unknown keys", () => {
-  it("rejects RuleSchema with unknown properties", () => {
-    const r = RuleSchema.safeParse({
+describe("nested schemas allow x- properties via passthrough", () => {
+  it("allows x- properties on WorkflowStepSchema (handoff)", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "handoff",
+      handoff_kind: "task-delegation",
+      "x-description": "Delegate to sub-agent",
+    });
+    expect((s as Record<string, unknown>)["x-description"]).toBe("Delegate to sub-agent");
+  });
+
+  it("allows x- properties on WorkflowStepSchema (validation)", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "validation",
+      validation: "val-1",
+      "x-timeout": 30,
+    });
+    expect((s as Record<string, unknown>)["x-timeout"]).toBe(30);
+  });
+
+  it("allows x- properties on WorkflowStepSchema (decision)", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "decision",
+      on: "field.path",
+      branches: { A: ["s1"] },
+      "x-meta": { info: true },
+    });
+    expect((s as Record<string, unknown>)["x-meta"]).toEqual({ info: true });
+  });
+
+  it("allows x- properties on RuleSchema", () => {
+    const r = RuleSchema.parse({
       id: "R",
       description: "d",
       severity: "mandatory",
-      extra_field: true,
+      "x-rule-meta": "extra",
     });
-    expect(r.success).toBe(false);
+    expect((r as Record<string, unknown>)["x-rule-meta"]).toBe("extra");
   });
 
-  it("rejects ExecutionStepSchema with unknown properties", () => {
-    const r = ExecutionStepSchema.safeParse({
+  it("allows x- properties on ExecutionStepSchema", () => {
+    const s = ExecutionStepSchema.parse({
       id: "s",
       action: "act",
-      unknown: 1,
+      "x-step-info": 42,
     });
-    expect(r.success).toBe(false);
+    expect((s as Record<string, unknown>)["x-step-info"]).toBe(42);
   });
 
-  it("rejects EscalationCriterionSchema with unknown properties", () => {
-    const r = EscalationCriterionSchema.safeParse({
+  it("allows x- properties on EscalationCriterionSchema", () => {
+    const e = EscalationCriterionSchema.parse({
       condition: "c",
       action: "stop_and_report",
-      foo: "bar",
+      "x-escalation-meta": true,
     });
-    expect(r.success).toBe(false);
+    expect((e as Record<string, unknown>)["x-escalation-meta"]).toBe(true);
   });
 
-  it("rejects PrerequisiteSchema with unknown properties", () => {
-    const r = PrerequisiteSchema.safeParse({
+  it("allows x- properties on PrerequisiteSchema", () => {
+    const p = PrerequisiteSchema.parse({
       action: "read",
       target: "t",
       required: true,
-      extra: false,
+      "x-prereq-note": "important",
     });
-    expect(r.success).toBe(false);
+    expect((p as Record<string, unknown>)["x-prereq-note"]).toBe("important");
   });
 });
 
@@ -634,6 +662,88 @@ describe("DslSchema with fixture YAMLs", () => {
         true,
       );
     }
+  });
+});
+
+describe("new standard properties", () => {
+  it("parses ExecutionStepSchema with optional description", () => {
+    const s = ExecutionStepSchema.parse({
+      id: "step-1",
+      action: "Do something",
+      description: "Detailed explanation of step",
+    });
+    expect(s.description).toBe("Detailed explanation of step");
+  });
+
+  it("omits ExecutionStepSchema description when absent", () => {
+    const s = ExecutionStepSchema.parse({ id: "s", action: "a" });
+    expect(s.description).toBeUndefined();
+  });
+
+  it("parses WorkflowStepSchema (handoff) with description", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "handoff",
+      handoff_kind: "task-delegation",
+      description: "Delegate to sub-agent",
+    });
+    expect(s.type).toBe("handoff");
+    if (s.type === "handoff") {
+      expect(s.description).toBe("Delegate to sub-agent");
+    }
+  });
+
+  it("parses WorkflowStepSchema (validation) with description", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "validation",
+      validation: "val-1",
+      description: "Run lint checks",
+    });
+    expect(s.type).toBe("validation");
+    if (s.type === "validation") {
+      expect(s.description).toBe("Run lint checks");
+    }
+  });
+
+  it("parses WorkflowStepSchema (decision) with description", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "decision",
+      on: "status",
+      branches: { pass: ["next"] },
+      description: "Route based on status",
+    });
+    expect(s.type).toBe("decision");
+    if (s.type === "decision") {
+      expect(s.description).toBe("Route based on status");
+    }
+  });
+
+  it("parses WorkflowSchema with optional trigger", () => {
+    const w = WorkflowSchema.parse({
+      steps: [{ type: "handoff" as const, handoff_kind: "k" }],
+      trigger: "on_task_complete",
+    });
+    expect(w.trigger).toBe("on_task_complete");
+  });
+
+  it("omits WorkflowSchema trigger when absent", () => {
+    const w = WorkflowSchema.parse({
+      steps: [{ type: "handoff" as const, handoff_kind: "k" }],
+    });
+    expect(w.trigger).toBeUndefined();
+  });
+
+  it("parses HandoffTypeSchema with optional example", () => {
+    const h = HandoffTypeSchema.parse({
+      version: 1,
+      payload: { type: "object" },
+      example: { summary: "Fix login bug", status: "complete" },
+    });
+    expect(h.example).toEqual({ summary: "Fix login bug", status: "complete" });
+  });
+
+  it("omits HandoffTypeSchema example when absent", () => {
+    const h = HandoffTypeSchema.parse(minimalValidHandoffType);
+    expect(h.example).toBeUndefined();
   });
 });
 

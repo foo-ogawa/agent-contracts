@@ -15,7 +15,7 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
   const validationIds = new Set(Object.keys(dsl.validations));
   const handoffKinds = new Set(Object.keys(dsl.handoff_types));
   const taskIds = new Set(Object.keys(dsl.tasks));
-  const phases = new Set(dsl.system.default_phase_order);
+  const workflowIds = new Set(dsl.system.default_workflow_order);
 
   function checkExists(
     value: string,
@@ -113,7 +113,7 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
     for (const ref of task.allowed_from_agents) {
       checkExists(ref, agentIds, "agents", `tasks.${id}.allowed_from_agents`);
     }
-    checkExists(task.phase, phases, "system.default_phase_order", `tasks.${id}.phase`);
+    checkExists(task.workflow, workflowIds, "system.default_workflow_order", `tasks.${id}.workflow`);
     checkExists(task.invocation_handoff, handoffKinds, "handoff_types", `tasks.${id}.invocation_handoff`);
     checkExists(task.result_handoff, handoffKinds, "handoff_types", `tasks.${id}.result_handoff`);
     for (const ref of task.input_artifacts) {
@@ -121,19 +121,19 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
     }
   }
 
-  for (const [phase, wf] of Object.entries(dsl.workflow)) {
-    checkExists(phase, phases, "system.default_phase_order", `workflow.${phase}`);
+  for (const [wfId, wf] of Object.entries(dsl.workflow)) {
+    checkExists(wfId, workflowIds, "system.default_workflow_order", `workflow.${wfId}`);
     for (let j = 0; j < wf.steps.length; j++) {
       const step = wf.steps[j];
       if (step.type === "handoff") {
         if (step.task) {
-          checkExists(step.task, taskIds, "tasks", `workflow.${phase}.steps[${j}].task`);
+          checkExists(step.task, taskIds, "tasks", `workflow.${wfId}.steps[${j}].task`);
         }
         if (step.from_agent) {
-          checkExists(step.from_agent, agentIds, "agents", `workflow.${phase}.steps[${j}].from_agent`);
+          checkExists(step.from_agent, agentIds, "agents", `workflow.${wfId}.steps[${j}].from_agent`);
         }
       } else if (step.type === "validation") {
-        checkExists(step.validation, validationIds, "validations", `workflow.${phase}.steps[${j}].validation`);
+        checkExists(step.validation, validationIds, "validations", `workflow.${wfId}.steps[${j}].validation`);
       }
     }
   }

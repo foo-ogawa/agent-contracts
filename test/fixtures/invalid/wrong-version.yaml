@@ -2,4 +2,4 @@ version: 2
 system:
   id: x
   name: X
-  default_phase_order: []
+  default_workflow_order: []

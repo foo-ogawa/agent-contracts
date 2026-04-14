@@ -65,7 +65,7 @@ describe("buildPerAgentContext", () => {
   it("rules merge: task rule with same id overrides agent rule", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["impl"] },
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
       agents: {
         a1: {
           role_name: "R",
@@ -80,7 +80,7 @@ describe("buildPerAgentContext", () => {
           description: "d",
           target_agent: "a1",
           allowed_from_agents: ["a1"],
-          phase: "impl",
+          workflow: "impl",
           input_artifacts: [],
           invocation_handoff: "h",
           result_handoff: "r",

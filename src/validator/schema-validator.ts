@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { DslSchema, type Dsl } from "../schema/index.js";
 
 export interface DiagnosticMessage {
@@ -12,86 +13,84 @@ export interface SchemaValidationResult {
   diagnostics: DiagnosticMessage[];
 }
 
-function hasNonExtensionCustomProps(
-  obj: Record<string, unknown>,
-  knownKeys: Set<string>,
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Zod v4 internal types ($ZodType) diverge from the exported ZodType class.
+   Runtime instanceof checks work correctly, but TypeScript sees a mismatch
+   on .unwrap()/.removeDefault()/.element returns. Using `any` at the boundary
+   keeps the recursive walker type-safe without pulling in Zod internals. */
+
+function unwrap(schema: any): any {
+  if (schema instanceof z.ZodOptional) return unwrap(schema.unwrap());
+  if (schema instanceof z.ZodDefault) return unwrap(schema.removeDefault());
+  if (schema instanceof z.ZodNullable) return unwrap(schema.unwrap());
+  return schema;
+}
+
+function checkCustomPropsRecursive(
+  data: unknown,
+  schema: any,
   path: string,
 ): DiagnosticMessage[] {
-  const diagnostics: DiagnosticMessage[] = [];
-  for (const key of Object.keys(obj)) {
-    if (knownKeys.has(key)) continue;
-    if (key.startsWith("x-")) continue;
-    diagnostics.push({
-      path: `${path}.${key}`,
-      message: `Unknown property "${key}". Custom properties must use "x-" prefix.`,
-      code: "unknown-property",
-    });
-  }
-  return diagnostics;
-}
+  const inner = unwrap(schema);
 
-const SYSTEM_KEYS = new Set(["id", "name", "default_phase_order"]);
-const AGENT_KEYS = new Set([
-  "role_name", "purpose", "can_read_artifacts", "can_write_artifacts",
-  "can_execute_tools", "can_perform_validations", "can_invoke_agents",
-  "can_return_handoffs", "dispatch_only", "mode", "responsibilities",
-  "constraints", "rules", "anti_patterns", "escalation_criteria", "prerequisites",
-]);
-const TASK_KEYS = new Set([
-  "description", "target_agent", "allowed_from_agents", "phase",
-  "input_artifacts", "invocation_handoff", "result_handoff", "default_priority",
-  "responsibilities", "constraints", "execution_steps", "completion_criteria",
-  "rules", "anti_patterns", "escalation_criteria",
-]);
-const ARTIFACT_KEYS = new Set([
-  "type", "description", "owner", "producers", "editors", "consumers",
-  "states", "required_validations", "visibility",
-]);
-const TOOL_KEYS = new Set([
-  "kind", "description", "input_artifacts", "output_artifacts",
-  "invokable_by", "side_effects",
-]);
-const VALIDATION_KEYS = new Set([
-  "target_artifact", "kind", "executor_type", "executor", "blocking",
-  "produces_evidence",
-]);
-const HANDOFF_TYPE_KEYS = new Set(["version", "description", "payload"]);
-const WORKFLOW_KEYS = new Set(["entry_conditions", "steps"]);
-const POLICY_KEYS = new Set(["when", "requires_validations", "requires"]);
-
-function checkCustomProps(data: Record<string, unknown>): DiagnosticMessage[] {
-  const diagnostics: DiagnosticMessage[] = [];
-
-  if (data["system"] && typeof data["system"] === "object") {
-    diagnostics.push(
-      ...hasNonExtensionCustomProps(data["system"] as Record<string, unknown>, SYSTEM_KEYS, "system"),
-    );
-  }
-
-  const sections: Array<{ key: string; knownKeys: Set<string> }> = [
-    { key: "agents", knownKeys: AGENT_KEYS },
-    { key: "tasks", knownKeys: TASK_KEYS },
-    { key: "artifacts", knownKeys: ARTIFACT_KEYS },
-    { key: "tools", knownKeys: TOOL_KEYS },
-    { key: "validations", knownKeys: VALIDATION_KEYS },
-    { key: "handoff_types", knownKeys: HANDOFF_TYPE_KEYS },
-    { key: "workflow", knownKeys: WORKFLOW_KEYS },
-    { key: "policies", knownKeys: POLICY_KEYS },
-  ];
-
-  for (const { key, knownKeys } of sections) {
-    const map = data[key];
-    if (typeof map !== "object" || map === null || Array.isArray(map)) continue;
-    for (const [entryKey, item] of Object.entries(map as Record<string, unknown>)) {
-      if (typeof item !== "object" || item === null) continue;
-      diagnostics.push(
-        ...hasNonExtensionCustomProps(item as Record<string, unknown>, knownKeys, `${key}.${entryKey}`),
-      );
+  if (inner instanceof z.ZodObject) {
+    if (typeof data !== "object" || data === null || Array.isArray(data)) return [];
+    const obj = data as Record<string, unknown>;
+    const shape = inner.shape as Record<string, any>;
+    const knownKeys = new Set(Object.keys(shape));
+    const diagnostics: DiagnosticMessage[] = [];
+    for (const key of Object.keys(obj)) {
+      if (knownKeys.has(key)) continue;
+      if (key.startsWith("x-")) continue;
+      diagnostics.push({
+        path: path ? `${path}.${key}` : key,
+        message: `Unknown property "${key}". Custom properties must use "x-" prefix.`,
+        code: "unknown-property",
+      });
     }
+    for (const [field, fieldSchema] of Object.entries(shape)) {
+      if (obj[field] === undefined) continue;
+      diagnostics.push(...checkCustomPropsRecursive(obj[field], fieldSchema, path ? `${path}.${field}` : field));
+    }
+    return diagnostics;
   }
 
-  return diagnostics;
+  if (inner instanceof z.ZodRecord) {
+    if (typeof data !== "object" || data === null || Array.isArray(data)) return [];
+    const valueSchema = inner._def.valueType;
+    const diagnostics: DiagnosticMessage[] = [];
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      diagnostics.push(...checkCustomPropsRecursive(value, valueSchema, path ? `${path}.${key}` : key));
+    }
+    return diagnostics;
+  }
+
+  if (inner instanceof z.ZodArray) {
+    if (!Array.isArray(data)) return [];
+    const diagnostics: DiagnosticMessage[] = [];
+    for (let i = 0; i < data.length; i++) {
+      diagnostics.push(...checkCustomPropsRecursive(data[i], inner.element, `${path}[${i}]`));
+    }
+    return diagnostics;
+  }
+
+  if (inner instanceof z.ZodDiscriminatedUnion) {
+    if (typeof data !== "object" || data === null) return [];
+    const obj = data as Record<string, unknown>;
+    const disc = (inner._def as any).discriminator as string;
+    const discValue = obj[disc];
+    const match = inner.options.find((opt: any) => {
+      const shape = opt.shape as Record<string, any>;
+      return shape[disc] instanceof z.ZodLiteral && shape[disc].value === discValue;
+    });
+    if (match) return checkCustomPropsRecursive(data, match, path);
+    return [];
+  }
+
+  return [];
 }
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function validateSchema(
   data: Record<string, unknown>,
@@ -107,7 +106,7 @@ export function validateSchema(
     return { success: false, diagnostics };
   }
 
-  const customPropDiagnostics = checkCustomProps(data);
+  const customPropDiagnostics = checkCustomPropsRecursive(data, DslSchema, "");
   if (customPropDiagnostics.length > 0) {
     return { success: false, diagnostics: customPropDiagnostics };
   }

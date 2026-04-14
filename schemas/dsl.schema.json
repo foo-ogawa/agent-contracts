@@ -18,7 +18,7 @@
         "name": {
           "type": "string"
         },
-        "default_phase_order": {
+        "default_workflow_order": {
           "type": "array",
           "items": {
             "type": "string"
@@ -28,7 +28,7 @@
       "required": [
         "id",
         "name",
-        "default_phase_order"
+        "default_workflow_order"
       ],
       "additionalProperties": {}
     },
@@ -148,7 +148,7 @@
                 "description",
                 "severity"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           },
           "anti_patterns": {
@@ -178,7 +178,7 @@
                 "condition",
                 "action"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           },
           "prerequisites": {
@@ -205,7 +205,7 @@
                 "target",
                 "required"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           }
         },
@@ -243,7 +243,7 @@
               "type": "string"
             }
           },
-          "phase": {
+          "workflow": {
             "type": "string"
           },
           "input_artifacts": {
@@ -284,6 +284,9 @@
                 "action": {
                   "type": "string"
                 },
+                "description": {
+                  "type": "string"
+                },
                 "required": {
                   "type": "boolean"
                 },
@@ -313,7 +316,7 @@
                 "id",
                 "action"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           },
           "completion_criteria": {
@@ -359,7 +362,7 @@
                 "description",
                 "severity"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           },
           "anti_patterns": {
@@ -389,7 +392,7 @@
                 "condition",
                 "action"
               ],
-              "additionalProperties": false
+              "additionalProperties": {}
             }
           }
         },
@@ -397,7 +400,7 @@
           "description",
           "target_agent",
           "allowed_from_agents",
-          "phase",
+          "workflow",
           "input_artifacts",
           "invocation_handoff",
           "result_handoff"
@@ -592,6 +595,13 @@
               "type": "string"
             },
             "additionalProperties": {}
+          },
+          "example": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -617,6 +627,9 @@
               "type": "string"
             }
           },
+          "trigger": {
+            "type": "string"
+          },
           "steps": {
             "type": "array",
             "items": {
@@ -627,6 +640,9 @@
                     "type": {
                       "type": "string",
                       "const": "handoff"
+                    },
+                    "description": {
+                      "type": "string"
                     },
                     "handoff_kind": {
                       "type": "string"
@@ -642,7 +658,7 @@
                     "type",
                     "handoff_kind"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": {}
                 },
                 {
                   "type": "object",
@@ -650,6 +666,9 @@
                     "type": {
                       "type": "string",
                       "const": "validation"
+                    },
+                    "description": {
+                      "type": "string"
                     },
                     "validation": {
                       "type": "string"
@@ -659,7 +678,7 @@
                     "type",
                     "validation"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": {}
                 },
                 {
                   "type": "object",
@@ -667,6 +686,9 @@
                     "type": {
                       "type": "string",
                       "const": "decision"
+                    },
+                    "description": {
+                      "type": "string"
                     },
                     "on": {
                       "type": "string"
@@ -689,7 +711,7 @@
                     "on",
                     "branches"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": {}
                 }
               ]
             }
@@ -717,7 +739,7 @@
               "artifact_type": {
                 "type": "string"
               },
-              "phase": {
+              "workflow": {
                 "type": "string"
               }
             },

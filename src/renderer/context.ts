@@ -88,7 +88,7 @@ export interface DelegatableTaskView {
   id: string;
   description: string;
   target_agent: string;
-  phase: string;
+  workflow: string;
   input_artifacts: string[];
   invocation_handoff: string;
   invocation_payload_keys: string[];
@@ -185,10 +185,10 @@ export function buildHandoffTypeContext(
 
 export function buildWorkflowContext(
   dsl: Dsl,
-  phaseId: string,
+  workflowId: string,
 ): PerWorkflowContext {
-  const wfDef = dsl.workflow[phaseId];
-  const workflow = { ...wfDef, id: phaseId } as Workflow & { id: string };
+  const wfDef = dsl.workflow[workflowId];
+  const workflow = { ...wfDef, id: workflowId } as Workflow & { id: string };
   return { workflow, dsl };
 }
 
@@ -276,7 +276,7 @@ function buildDelegatableTasks(
         id: taskId,
         description: t.description,
         target_agent: t.target_agent,
-        phase: t.phase,
+        workflow: t.workflow,
         input_artifacts: t.input_artifacts,
         invocation_handoff: t.invocation_handoff,
         invocation_payload_keys: invocationHandoff

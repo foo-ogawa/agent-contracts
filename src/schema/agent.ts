@@ -10,7 +10,7 @@ export const RuleSchema = z
     escalation: z.string().optional(),
     ref: z.string().optional(),
   })
-  .strict();
+  .passthrough();
 export type Rule = z.infer<typeof RuleSchema>;
 
 export const EscalationCriterionSchema = z
@@ -22,7 +22,7 @@ export const EscalationCriterionSchema = z
       "wait_for_approval",
     ]),
   })
-  .strict();
+  .passthrough();
 export type EscalationCriterion = z.infer<typeof EscalationCriterionSchema>;
 
 export const PrerequisiteSchema = z
@@ -31,7 +31,7 @@ export const PrerequisiteSchema = z
     target: z.string(),
     required: z.boolean(),
   })
-  .strict();
+  .passthrough();
 export type Prerequisite = z.infer<typeof PrerequisiteSchema>;
 
 export const AgentSchema = z

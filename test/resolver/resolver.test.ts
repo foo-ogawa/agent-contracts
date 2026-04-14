@@ -8,7 +8,7 @@ const fixturesDir = resolvePath(import.meta.dirname, "../fixtures");
 describe("mergeDsl", () => {
   const base = {
     version: 1,
-    system: { id: "base", name: "Base", default_phase_order: ["a"] },
+    system: { id: "base", name: "Base", default_workflow_order: ["a"] },
     agents: {
       "agent-1": {
         role_name: "R",
@@ -22,7 +22,7 @@ describe("mergeDsl", () => {
         description: "d",
         target_agent: "agent-1",
         allowed_from_agents: ["agent-1"],
-        phase: "a",
+        workflow: "a",
         input_artifacts: [],
         invocation_handoff: "h",
         result_handoff: "r",

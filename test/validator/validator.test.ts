@@ -47,7 +47,7 @@ describe("validateSchema", () => {
   it("rejects non-x- custom properties", () => {
     const data = {
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: [] },
+      system: { id: "s", name: "S", default_workflow_order: [] },
       agents: {
         a: { role_name: "R", purpose: "P", custom_field: "bad" },
       },
@@ -56,6 +56,103 @@ describe("validateSchema", () => {
     expect(result.success).toBe(false);
     expect(result.diagnostics.some((d) => d.code === "unknown-property")).toBe(true);
     expect(result.diagnostics.some((d) => d.message.includes("custom_field"))).toBe(true);
+  });
+
+  it("allows x- properties in nested workflow steps", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      workflow: {
+        phase1: {
+          steps: [
+            { type: "handoff", handoff_kind: "k", "x-description": "desc" },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects non-x- custom properties in nested workflow steps", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      workflow: {
+        phase1: {
+          steps: [
+            { type: "handoff", handoff_kind: "k", bad_prop: true },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "unknown-property")).toBe(true);
+    expect(result.diagnostics.some((d) => d.message.includes("bad_prop"))).toBe(true);
+  });
+
+  it("allows x- properties in nested agent rules", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      agents: {
+        a: {
+          role_name: "R",
+          purpose: "P",
+          rules: [
+            { id: "r1", description: "d", severity: "mandatory", "x-rule-meta": "ok" },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects non-x- custom properties in nested agent rules", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      agents: {
+        a: {
+          role_name: "R",
+          purpose: "P",
+          rules: [
+            { id: "r1", description: "d", severity: "mandatory", bad_field: true },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "unknown-property")).toBe(true);
+    expect(result.diagnostics.some((d) => d.message.includes("bad_field"))).toBe(true);
+  });
+
+  it("rejects non-x- custom properties in nested execution steps", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      tasks: {
+        t1: {
+          description: "d",
+          target_agent: "a",
+          allowed_from_agents: ["a"],
+          workflow: "p",
+          input_artifacts: [],
+          invocation_handoff: "h",
+          result_handoff: "r",
+          execution_steps: [
+            { id: "s1", action: "act", typo_field: 1 },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "unknown-property")).toBe(true);
+    expect(result.diagnostics.some((d) => d.message.includes("typo_field"))).toBe(true);
   });
 });
 
@@ -71,7 +168,7 @@ describe("checkReferences", () => {
   it("detects non-existent agent reference in artifact.owner", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["implement"] },
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
       agents: { a1: { role_name: "R", purpose: "P" } },
       artifacts: {
         art1: {
@@ -92,7 +189,7 @@ describe("checkReferences", () => {
   it("detects non-existent tool in agent.can_execute_tools", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: [] },
+      system: { id: "s", name: "S", default_workflow_order: [] },
       agents: {
         a1: { role_name: "R", purpose: "P", can_execute_tools: ["missing-tool"] },
       },
@@ -104,14 +201,14 @@ describe("checkReferences", () => {
   it("detects non-existent agent in task.target_agent", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["impl"] },
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
       agents: { a1: { role_name: "R", purpose: "P" } },
       tasks: {
         t1: {
           description: "d",
           target_agent: "nonexistent",
           allowed_from_agents: ["a1"],
-          phase: "impl",
+          workflow: "impl",
           input_artifacts: [],
           invocation_handoff: "h",
           result_handoff: "r",
@@ -129,7 +226,7 @@ describe("checkReferences", () => {
   it("detects non-existent validation in workflow step", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["impl"] },
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
       workflow: {
         impl: {
           steps: [
@@ -145,7 +242,7 @@ describe("checkReferences", () => {
   it("detects artifact owner without read permission (artifact-owner-no-read)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: { owner: { role_name: "R", purpose: "P", can_read_artifacts: [] } },
       artifacts: {
         art1: {
@@ -166,7 +263,7 @@ describe("checkReferences", () => {
   it("allows artifact owner with read permission (no artifact-owner-no-read)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: { owner: { role_name: "R", purpose: "P", can_read_artifacts: ["art1"] } },
       artifacts: {
         art1: {
@@ -186,7 +283,7 @@ describe("checkReferences", () => {
   it("detects tool validation executor with empty invokable_by (validation-executor-unreachable)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: { a1: { role_name: "R", purpose: "P", can_read_artifacts: ["art1"] } },
       artifacts: {
         art1: {
@@ -218,7 +315,7 @@ describe("checkReferences", () => {
   it("detects result_handoff not in target agent can_return_handoffs (result-handoff-not-returnable)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: {
         a1: { role_name: "R", purpose: "P", can_return_handoffs: ["inv"] },
       },
@@ -227,7 +324,7 @@ describe("checkReferences", () => {
           description: "d",
           target_agent: "a1",
           allowed_from_agents: ["a1"],
-          phase: "p",
+          workflow: "p",
           input_artifacts: [],
           invocation_handoff: "inv",
           result_handoff: "res",
@@ -246,7 +343,7 @@ describe("checkReferences", () => {
   it("detects input_artifact not in target agent can_read_artifacts (input-artifact-not-readable)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: {
         a1: { role_name: "R", purpose: "P", can_read_artifacts: ["art1"], can_return_handoffs: ["inv", "res"] },
         a2: { role_name: "R", purpose: "P", can_read_artifacts: ["art2"] },
@@ -260,7 +357,7 @@ describe("checkReferences", () => {
           description: "d",
           target_agent: "a1",
           allowed_from_agents: ["a1"],
-          phase: "p",
+          workflow: "p",
           input_artifacts: ["art2"],
           invocation_handoff: "inv",
           result_handoff: "res",
@@ -279,7 +376,7 @@ describe("checkReferences", () => {
   it("detects read-only agent with non-empty can_write_artifacts (readonly-agent-has-writes)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: {
         a1: { role_name: "R", purpose: "P", mode: "read-only", can_read_artifacts: ["art1"], can_write_artifacts: ["art1"] },
       },
@@ -295,7 +392,7 @@ describe("checkReferences", () => {
   it("detects prerequisite target not in can_read_artifacts (prerequisite-not-readable)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: {
         a1: { role_name: "R", purpose: "P", can_read_artifacts: [], prerequisites: [{ action: "read", target: "art1", required: true }] },
         a2: { role_name: "R", purpose: "P", can_read_artifacts: ["art1"] },
@@ -312,7 +409,7 @@ describe("checkReferences", () => {
   it("detects payload required field missing from properties (payload-required-not-in-properties)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: [] },
+      system: { id: "s", name: "S", default_workflow_order: [] },
       handoff_types: {
         h: {
           version: 1,
@@ -331,7 +428,7 @@ describe("checkReferences", () => {
   it("detects payload property with empty enum (payload-empty-enum)", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: [] },
+      system: { id: "s", name: "S", default_workflow_order: [] },
       handoff_types: {
         h: {
           version: 1,
@@ -351,7 +448,7 @@ describe("checkReferences", () => {
   it("returns no diagnostics when all new integrity rules are satisfied", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["p"] },
+      system: { id: "s", name: "S", default_workflow_order: ["p"] },
       agents: {
         a1: { role_name: "R", purpose: "P", can_read_artifacts: ["art1"], can_return_handoffs: ["inv", "res"], prerequisites: [{ action: "read", target: "art1", required: true }] },
       },
@@ -363,7 +460,7 @@ describe("checkReferences", () => {
         v1: { target_artifact: "art1", kind: "schema", executor_type: "tool", executor: "tool1", blocking: false },
       },
       tasks: {
-        t1: { description: "d", target_agent: "a1", allowed_from_agents: ["a1"], phase: "p", input_artifacts: ["art1"], invocation_handoff: "inv", result_handoff: "res" },
+        t1: { description: "d", target_agent: "a1", allowed_from_agents: ["a1"], workflow: "p", input_artifacts: ["art1"], invocation_handoff: "inv", result_handoff: "res" },
       },
       handoff_types: {
         inv: { version: 1, payload: { required: ["taskId"], properties: { taskId: { type: "string" } } } },

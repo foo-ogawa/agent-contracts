@@ -5,6 +5,7 @@ export const ExecutionStepSchema = z
   .object({
     id: z.string(),
     action: z.string(),
+    description: z.string().optional(),
     required: z.boolean().optional(),
     abort_on_failure: z.boolean().optional(),
     uses_tool: z.string().optional(),
@@ -13,7 +14,7 @@ export const ExecutionStepSchema = z
     skip_condition: z.string().optional(),
     wait_for_approval: z.boolean().optional(),
   })
-  .strict();
+  .passthrough();
 export type ExecutionStep = z.infer<typeof ExecutionStepSchema>;
 
 export const TaskSchema = z
@@ -21,7 +22,7 @@ export const TaskSchema = z
     description: z.string(),
     target_agent: z.string(),
     allowed_from_agents: z.array(z.string()),
-    phase: z.string(),
+    workflow: z.string(),
     input_artifacts: z.array(z.string()),
     invocation_handoff: z.string(),
     result_handoff: z.string(),

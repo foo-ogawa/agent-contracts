@@ -13,7 +13,7 @@ describe("loadDsl", () => {
       expect(result.data["system"]).toEqual({
         id: "minimal-system",
         name: "Minimal Agent Workflow",
-        default_phase_order: ["analyze", "implement"],
+        default_workflow_order: ["analyze", "implement"],
       });
       const agents = result.data["agents"] as Record<string, unknown>;
       expect(typeof agents).toBe("object");
@@ -71,7 +71,7 @@ describe("loadDsl", () => {
       const tmpPath = join(tmpDir, "_broken-ref.yaml");
       await writeFile(
         tmpPath,
-        'version: 1\nsystem:\n  id: x\n  name: X\n  default_phase_order: []\nagents: { $ref: "./nonexistent.yaml" }\n',
+        'version: 1\nsystem:\n  id: x\n  name: X\n  default_workflow_order: []\nagents: { $ref: "./nonexistent.yaml" }\n',
       );
       try {
         await expect(loadDsl(tmpPath)).rejects.toThrow(DslLoadError);

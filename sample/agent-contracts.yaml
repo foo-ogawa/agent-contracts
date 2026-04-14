@@ -2,7 +2,7 @@ version: 1
 system:
   id: dev-team
   name: Development Team
-  default_phase_order:
+  default_workflow_order:
     - design
     - implement
 
@@ -63,7 +63,7 @@ tasks:
     description: Design a new feature based on requirements
     target_agent: architect
     allowed_from_agents: []
-    phase: design
+    workflow: design
     input_artifacts:
       - spec-doc
     invocation_handoff: task-delegation
@@ -74,7 +74,7 @@ tasks:
     target_agent: implementer
     allowed_from_agents:
       - architect
-    phase: implement
+    workflow: implement
     input_artifacts:
       - spec-doc
       - codebase
@@ -98,7 +98,7 @@ tasks:
     target_agent: tester
     allowed_from_agents:
       - architect
-    phase: implement
+    workflow: implement
     input_artifacts:
       - spec-doc
       - codebase

@@ -18,7 +18,7 @@ function createMinimalDsl(): Dsl {
     system: {
       id: "test-system",
       name: "Test System",
-      default_phase_order: ["plan", "implement"],
+      default_workflow_order: ["plan", "implement"],
     },
     agents: {
       dev: {
@@ -47,7 +47,7 @@ function createMinimalDsl(): Dsl {
         description: "Implement a feature",
         target_agent: "dev",
         allowed_from_agents: ["reviewer"],
-        phase: "implement",
+        workflow: "implement",
         input_artifacts: ["source-code"],
         invocation_handoff: "task-request",
         result_handoff: "task-result",
@@ -56,7 +56,7 @@ function createMinimalDsl(): Dsl {
         description: "Review code changes",
         target_agent: "reviewer",
         allowed_from_agents: ["dev"],
-        phase: "implement",
+        workflow: "implement",
         input_artifacts: ["source-code"],
         invocation_handoff: "task-request",
         result_handoff: "task-result",

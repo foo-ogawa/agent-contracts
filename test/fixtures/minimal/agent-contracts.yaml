@@ -2,7 +2,7 @@ version: 1
 system:
   id: minimal-system
   name: Minimal Agent Workflow
-  default_phase_order:
+  default_workflow_order:
     - analyze
     - implement
 
@@ -26,7 +26,7 @@ tasks:
     target_agent: implementer
     allowed_from_agents:
       - implementer
-    phase: implement
+    workflow: implement
     input_artifacts:
       - codebase
     invocation_handoff: task-delegation

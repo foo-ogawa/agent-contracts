@@ -10,7 +10,7 @@ export const SystemSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    default_phase_order: z.array(z.string()),
+    default_workflow_order: z.array(z.string()),
   })
   .passthrough();
 export type System = z.infer<typeof SystemSchema>;

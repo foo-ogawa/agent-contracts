@@ -3,7 +3,7 @@ import { z } from "zod";
 export const PolicyWhenSchema = z
   .object({
     artifact_type: z.string().optional(),
-    phase: z.string().optional(),
+    workflow: z.string().optional(),
   })
   .passthrough();
 export type PolicyWhen = z.infer<typeof PolicyWhenSchema>;

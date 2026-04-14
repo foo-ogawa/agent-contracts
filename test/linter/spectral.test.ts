@@ -4,7 +4,7 @@ import { spectralLint } from "../../src/linter/spectral-lint.js";
 function makeDsl(partial: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 1,
-    system: { id: "s", name: "S", default_phase_order: ["implement"] },
+    system: { id: "s", name: "S", default_workflow_order: ["implement"] },
     agents: {},
     tasks: {},
     artifacts: {},
@@ -81,7 +81,7 @@ describe("Spectral lint — reference integrity", () => {
           description: "d",
           target_agent: "impl",
           allowed_from_agents: ["impl"],
-          phase: "implement",
+          workflow: "implement",
           input_artifacts: [],
           invocation_handoff: "ghost-handoff",
           result_handoff: "ghost-result",

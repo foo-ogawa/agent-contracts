@@ -6,7 +6,6 @@ import { DslSchema, type Dsl } from "../../src/schema/index.js";
 import { lint } from "../../src/linter/linter.js";
 import { validationCoverageRule } from "../../src/linter/rules/validation-coverage.js";
 import { toolExecutionRule } from "../../src/linter/rules/tool-execution.js";
-import { releaseAuditRule } from "../../src/linter/rules/release-audit.js";
 import { taskAgentBindingRule } from "../../src/linter/rules/task-agent-binding.js";
 import { mergeIntegrityRule } from "../../src/linter/rules/merge-integrity.js";
 
@@ -20,7 +19,7 @@ function loadDsl(rel: string): Dsl {
 function makeDsl(partial: Partial<Record<string, unknown>>): Dsl {
   return DslSchema.parse({
     version: 1,
-    system: { id: "s", name: "S", default_phase_order: ["implement"] },
+    system: { id: "s", name: "S", default_workflow_order: ["implement"] },
     ...partial,
   });
 }
@@ -124,7 +123,7 @@ describe("toolExecutionRule", () => {
       tasks: {
         t1: {
           description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
-          phase: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
           execution_steps: [{ id: "s1", action: "Act", uses_tool: "missing-tool" }],
         },
       },
@@ -169,78 +168,6 @@ describe("toolExecutionRule", () => {
   });
 });
 
-describe("releaseAuditRule", () => {
-  it("warns about missing release-readiness and release-result handoff types", () => {
-    const dsl = makeDsl({
-      system: { id: "s", name: "S", default_phase_order: ["implement", "audit", "release"] },
-    });
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags.some((d) => d.message.includes("release-readiness"))).toBe(true);
-    expect(diags.some((d) => d.message.includes("release-result"))).toBe(true);
-  });
-
-  it("warns when audit/release phase has no workflow definition", () => {
-    const dsl = makeDsl({
-      system: { id: "s", name: "S", default_phase_order: ["implement", "audit"] },
-      handoff_types: {
-        "release-readiness": { version: 1, payload: {} },
-        "release-result": { version: 1, payload: {} },
-      },
-    });
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags.some((d) => d.message.includes("no workflow definition"))).toBe(true);
-  });
-
-  it("info when audit workflow has no decision step", () => {
-    const dsl = makeDsl({
-      system: { id: "s", name: "S", default_phase_order: ["implement", "audit"] },
-      handoff_types: {
-        "release-readiness": { version: 1, payload: {} },
-        "release-result": { version: 1, payload: {} },
-      },
-      workflow: {
-        audit: {
-          steps: [{ type: "handoff", handoff_kind: "release-readiness" }],
-        },
-      },
-    });
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags.some((d) => d.severity === "info" && d.message.includes("no decision step"))).toBe(true);
-  });
-
-  it("skips check when no audit/release phases", () => {
-    const dsl = makeDsl({});
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags).toHaveLength(0);
-  });
-
-  it("warns about missing audit-report and audit-reconciliation for audit phase", () => {
-    const dsl = makeDsl({
-      system: { id: "s", name: "S", default_phase_order: ["implement", "audit"] },
-      handoff_types: {
-        "release-readiness": { version: 1, payload: {} },
-        "release-result": { version: 1, payload: {} },
-      },
-    });
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags.some((d) => d.message.includes("audit-report"))).toBe(true);
-    expect(diags.some((d) => d.message.includes("audit-reconciliation"))).toBe(true);
-  });
-
-  it("does not warn about audit-report when not specifically an audit phase", () => {
-    const dsl = makeDsl({
-      system: { id: "s", name: "S", default_phase_order: ["implement", "release"] },
-      handoff_types: {
-        "release-readiness": { version: 1, payload: {} },
-        "release-result": { version: 1, payload: {} },
-      },
-      workflow: { release: { steps: [{ type: "decision", on: "status", branches: { pass: ["done"], fail: ["fix"] } }] } },
-    });
-    const diags = releaseAuditRule.run(dsl);
-    expect(diags.filter((d) => d.message.includes("audit-report"))).toHaveLength(0);
-    expect(diags.filter((d) => d.message.includes("audit-reconciliation"))).toHaveLength(0);
-  });
-});
 
 describe("taskAgentBindingRule", () => {
   it("detects allowed_from_agents ↔ can_invoke_agents mismatch", () => {
@@ -252,7 +179,7 @@ describe("taskAgentBindingRule", () => {
       tasks: {
         t1: {
           description: "d", target_agent: "target", allowed_from_agents: ["caller"],
-          phase: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
         },
       },
     });
@@ -283,7 +210,7 @@ describe("taskAgentBindingRule", () => {
       tasks: {
         t1: {
           description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
-          phase: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
           execution_steps: [{ id: "s1", action: "Act", produces_artifact: "art1" }],
         },
       },
@@ -301,7 +228,7 @@ describe("taskAgentBindingRule", () => {
       tasks: {
         t1: {
           description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
-          phase: "implement", input_artifacts: ["art1"], invocation_handoff: "h", result_handoff: "r",
+          workflow: "implement", input_artifacts: ["art1"], invocation_handoff: "h", result_handoff: "r",
         },
       },
     });
@@ -317,7 +244,7 @@ describe("taskAgentBindingRule", () => {
       tasks: {
         t1: {
           description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
-          phase: "implement", input_artifacts: [], invocation_handoff: "inv", result_handoff: "res",
+          workflow: "implement", input_artifacts: [], invocation_handoff: "inv", result_handoff: "res",
         },
       },
       handoff_types: {
@@ -336,7 +263,7 @@ describe("taskAgentBindingRule", () => {
       tasks: {
         task1: {
           description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
-          phase: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
           execution_steps: [{ id: "s1", action: "Act", uses_tool: "t1" }],
         },
       },
@@ -351,13 +278,13 @@ describe("taskAgentBindingRule", () => {
 });
 
 describe("mergeIntegrityRule", () => {
-  it("detects duplicate phases in default_phase_order", () => {
+  it("detects duplicate phases in default_workflow_order", () => {
     const dsl = DslSchema.parse({
       version: 1,
-      system: { id: "s", name: "S", default_phase_order: ["implement", "implement"] },
+      system: { id: "s", name: "S", default_workflow_order: ["implement", "implement"] },
     });
     const diags = mergeIntegrityRule.run(dsl);
-    expect(diags.some((d) => d.message.includes("Duplicate phase"))).toBe(true);
+    expect(diags.some((d) => d.message.includes("Duplicate workflow"))).toBe(true);
   });
 
   it("passes when no duplicates exist", () => {

@@ -13,7 +13,7 @@ function createMinimalDsl(): Dsl {
     system: {
       id: "test-system",
       name: "Test System",
-      default_phase_order: ["plan"],
+      default_workflow_order: ["plan"],
     },
     agents: {
       dev: {

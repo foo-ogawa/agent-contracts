@@ -2,7 +2,7 @@ version: 1
 system:
   id: nested-ref-system
   name: Nested Ref Test
-  default_phase_order:
+  default_workflow_order:
     - implement
 
 agents:

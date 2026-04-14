@@ -2,7 +2,7 @@ version: 1
 system:
   id: refs-deep-merge
   name: Refs Deep Merge Test
-  default_phase_order:
+  default_workflow_order:
     - implement
 $refs:
   - "./agents-core.yaml"
