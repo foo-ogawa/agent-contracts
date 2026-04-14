@@ -1,0 +1,10 @@
+dsl: ./agent-contracts.yaml
+
+renders:
+  - template: ../templates/agent-prompt.md.hbs
+    context: agent
+    output: ../../__cli_output__/{agent.id}.md
+
+  - template: ../templates/overview.md.hbs
+    context: system
+    output: ../../__cli_output__/overview.md

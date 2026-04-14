@@ -1,0 +1,37 @@
+version: 1
+extends: "../base/"
+system:
+  id: project-system
+  name: Project System
+
+agents:
+  implementer:
+    constraints:
+      $append:
+        - Use package imports only
+    rules:
+      $append:
+        - id: R-IMPL-002
+          description: Package path imports
+          severity: mandatory
+    x-stack-notes: TypeScript service
+
+  designer:
+    role_name: Designer
+    purpose: UI design
+
+tasks:
+  implement-feature:
+    execution_steps:
+      $insert_after:
+        target: implement
+        items:
+          - id: run-lint
+            action: Run linter
+    completion_criteria:
+      $append:
+        - Lint passed
+
+artifacts:
+  codebase:
+    description: TypeScript monorepo

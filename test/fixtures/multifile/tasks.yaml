@@ -1,0 +1,8 @@
+implement-feature:
+  description: Implement a feature
+  target_agent: implementer
+  allowed_from_agents: [implementer]
+  phase: implement
+  input_artifacts: [codebase]
+  invocation_handoff: task-delegation
+  result_handoff: dependency-evidence

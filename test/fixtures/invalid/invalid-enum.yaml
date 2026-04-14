@@ -1,0 +1,12 @@
+version: 1
+system:
+  id: x
+  name: X
+  default_phase_order: []
+validations:
+  bad-val:
+    target_artifact: codebase
+    kind: unknown
+    executor_type: tool
+    executor: t
+    blocking: true

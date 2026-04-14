@@ -1,0 +1,7 @@
+codebase:
+  type: code
+  owner: implementer
+  producers: [implementer]
+  editors: [implementer]
+  consumers: [implementer]
+  states: [draft]

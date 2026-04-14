@@ -1,0 +1,31 @@
+# {{system.name}}
+
+## Phases
+
+{{#each system.default_phase_order}}
+1. **{{this}}**
+{{/each}}
+
+## Agent Roster
+
+| Agent | Role | Purpose |
+|-------|------|---------|
+{{#each dsl.agents}}
+| {{@key}} | {{this.role_name}} | {{this.purpose}} |
+{{/each}}
+
+## Artifacts
+
+| ID | Type | Owner | Description |
+|----|------|-------|-------------|
+{{#each dsl.artifacts}}
+| {{@key}} | {{this.type}} | {{this.owner}} | {{this.description}} |
+{{/each}}
+
+## Tools
+
+| ID | Kind | Description |
+|----|------|-------------|
+{{#each dsl.tools}}
+| {{@key}} | {{this.kind}} | {{this.description}} |
+{{/each}}

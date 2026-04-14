@@ -1,0 +1,272 @@
+version: 1
+system:
+  id: dev-team
+  name: Development Team
+  default_phase_order:
+    - design
+    - implement
+
+agents:
+  architect:
+    role_name: Architect
+    purpose: Design system architecture and delegate tasks to implementer and tester
+    dispatch_only: true
+    can_read_artifacts:
+      - spec-doc
+      - codebase
+      - test-suite
+    can_write_artifacts:
+      - spec-doc
+    can_invoke_agents:
+      - implementer
+      - tester
+    can_return_handoffs:
+      - task-delegation
+
+  implementer:
+    role_name: Implementer
+    purpose: Implement features based on specifications
+    can_read_artifacts:
+      - spec-doc
+      - codebase
+    can_write_artifacts:
+      - codebase
+    can_execute_tools:
+      - code-editor
+    can_return_handoffs:
+      - implementation-result
+    responsibilities:
+      - Write clean, maintainable code
+      - Follow the specification in spec-doc
+    constraints:
+      - Do not modify test files directly
+
+  tester:
+    role_name: Tester
+    purpose: Write and run tests to verify implementation correctness
+    can_read_artifacts:
+      - spec-doc
+      - codebase
+      - test-suite
+    can_write_artifacts:
+      - test-suite
+    can_execute_tools:
+      - test-runner
+    can_return_handoffs:
+      - test-result
+    responsibilities:
+      - Write comprehensive test cases
+      - Report test results clearly
+
+tasks:
+  design-feature:
+    description: Design a new feature based on requirements
+    target_agent: architect
+    allowed_from_agents: []
+    phase: design
+    input_artifacts:
+      - spec-doc
+    invocation_handoff: task-delegation
+    result_handoff: task-delegation
+
+  implement-feature:
+    description: Implement a feature based on the specification
+    target_agent: implementer
+    allowed_from_agents:
+      - architect
+    phase: implement
+    input_artifacts:
+      - spec-doc
+      - codebase
+    invocation_handoff: task-delegation
+    result_handoff: implementation-result
+    execution_steps:
+      - id: read-spec
+        action: Read the specification document
+        required: true
+      - id: write-code
+        action: Write implementation code
+        required: true
+        uses_tool: code-editor
+        produces_artifact: codebase
+    completion_criteria:
+      - All specified features are implemented
+      - Code compiles without errors
+
+  write-tests:
+    description: Write tests for the implemented feature
+    target_agent: tester
+    allowed_from_agents:
+      - architect
+    phase: implement
+    input_artifacts:
+      - spec-doc
+      - codebase
+      - test-suite
+    invocation_handoff: task-delegation
+    result_handoff: test-result
+    execution_steps:
+      - id: review-code
+        action: Review the implementation code
+        required: true
+      - id: write-test-cases
+        action: Write test cases
+        required: true
+        produces_artifact: test-suite
+      - id: run-tests
+        action: Run the test suite
+        required: true
+        uses_tool: test-runner
+
+artifacts:
+  spec-doc:
+    type: document
+    description: Feature specification document
+    owner: architect
+    producers:
+      - architect
+    editors:
+      - architect
+    consumers:
+      - implementer
+      - tester
+    states:
+      - draft
+      - approved
+    required_validations:
+      - spec-review
+
+  codebase:
+    type: code
+    description: Application source code
+    owner: implementer
+    producers:
+      - implementer
+    editors:
+      - implementer
+    consumers:
+      - architect
+      - tester
+    states:
+      - in-progress
+      - complete
+    required_validations:
+      - lint-check
+
+  test-suite:
+    type: code
+    description: Test code and test results
+    owner: tester
+    producers:
+      - tester
+    editors:
+      - tester
+    consumers:
+      - architect
+      - implementer
+    states:
+      - draft
+      - passing
+      - failing
+    required_validations:
+      - test-run
+
+tools:
+  code-editor:
+    kind: editor
+    description: Code editing and file manipulation tool
+    input_artifacts:
+      - codebase
+    output_artifacts:
+      - codebase
+    invokable_by:
+      - implementer
+
+  test-runner:
+    kind: cli
+    description: Test execution framework
+    input_artifacts:
+      - codebase
+      - test-suite
+    output_artifacts: []
+    invokable_by:
+      - tester
+
+validations:
+  spec-review:
+    target_artifact: spec-doc
+    kind: approval
+    executor_type: agent
+    executor: architect
+    blocking: true
+
+  lint-check:
+    target_artifact: codebase
+    kind: mechanical
+    executor_type: tool
+    executor: code-editor
+    blocking: false
+
+  test-run:
+    target_artifact: test-suite
+    kind: mechanical
+    executor_type: tool
+    executor: test-runner
+    blocking: false
+
+handoff_types:
+  task-delegation:
+    version: 1
+    description: Delegate a task to another agent
+    payload:
+      type: object
+      required:
+        - objective
+      properties:
+        objective:
+          type: string
+        context:
+          type: string
+        constraints:
+          type: array
+
+  implementation-result:
+    version: 1
+    description: Report the result of an implementation task
+    payload:
+      type: object
+      required:
+        - summary
+        - status
+      properties:
+        summary:
+          type: string
+        status:
+          type: string
+          enum:
+            - complete
+            - partial
+            - blocked
+        changed_files:
+          type: array
+
+  test-result:
+    version: 1
+    description: Report test execution results
+    payload:
+      type: object
+      required:
+        - summary
+        - passed
+      properties:
+        summary:
+          type: string
+        passed:
+          type: boolean
+        total_tests:
+          type: integer
+        failed_tests:
+          type: integer
+
+workflow: {}
+policies: {}

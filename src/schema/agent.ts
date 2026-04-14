@@ -1,0 +1,57 @@
+import { z } from "zod";
+
+export const RuleSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().optional(),
+    description: z.string(),
+    severity: z.enum(["mandatory", "recommended", "optional"]),
+    detection_method: z.string().optional(),
+    escalation: z.string().optional(),
+    ref: z.string().optional(),
+  })
+  .strict();
+export type Rule = z.infer<typeof RuleSchema>;
+
+export const EscalationCriterionSchema = z
+  .object({
+    condition: z.string(),
+    action: z.enum([
+      "stop_and_report",
+      "report_to_architect",
+      "wait_for_approval",
+    ]),
+  })
+  .strict();
+export type EscalationCriterion = z.infer<typeof EscalationCriterionSchema>;
+
+export const PrerequisiteSchema = z
+  .object({
+    action: z.enum(["read", "execute"]),
+    target: z.string(),
+    required: z.boolean(),
+  })
+  .strict();
+export type Prerequisite = z.infer<typeof PrerequisiteSchema>;
+
+export const AgentSchema = z
+  .object({
+    role_name: z.string(),
+    purpose: z.string(),
+    can_read_artifacts: z.array(z.string()).default([]),
+    can_write_artifacts: z.array(z.string()).default([]),
+    can_execute_tools: z.array(z.string()).default([]),
+    can_perform_validations: z.array(z.string()).default([]),
+    can_invoke_agents: z.array(z.string()).default([]),
+    can_return_handoffs: z.array(z.string()).default([]),
+    dispatch_only: z.boolean().optional(),
+    mode: z.enum(["read-only", "read-write"]).optional(),
+    responsibilities: z.array(z.string()).optional(),
+    constraints: z.array(z.string()).optional(),
+    rules: z.array(RuleSchema).optional(),
+    anti_patterns: z.array(z.string()).optional(),
+    escalation_criteria: z.array(EscalationCriterionSchema).optional(),
+    prerequisites: z.array(PrerequisiteSchema).optional(),
+  })
+  .passthrough();
+export type Agent = z.infer<typeof AgentSchema>;

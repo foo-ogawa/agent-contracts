@@ -1,0 +1,28 @@
+export {
+  renderFromConfig,
+  checkDriftFromConfig,
+} from "./renderer.js";
+export {
+  buildGlobalContext,
+  buildSystemContext,
+  buildPerAgentContext,
+  buildTaskContext,
+  buildArtifactContext,
+  buildToolContext,
+  buildValidationContext,
+  buildHandoffTypeContext,
+  buildWorkflowContext,
+  buildPolicyContext,
+  type GlobalContext,
+  type SystemContext,
+  type PerAgentContext,
+  type PerTaskContext,
+  type PerArtifactContext,
+  type PerToolContext,
+  type PerValidationContext,
+  type PerHandoffTypeContext,
+  type PerWorkflowContext,
+  type PerPolicyContext,
+  type MergedBehavioralSpec,
+  type DelegatableTaskView,
+} from "./context.js";

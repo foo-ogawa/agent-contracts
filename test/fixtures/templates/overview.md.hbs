@@ -1,0 +1,13 @@
+# {{system.name}}
+
+## Agents
+
+{{#each dsl.agents}}
+- {{@key}}: {{this.purpose}}
+{{/each}}
+
+## Artifacts
+
+{{#each dsl.artifacts}}
+- {{@key}} ({{this.type}})
+{{/each}}

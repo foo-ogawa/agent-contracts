@@ -1,0 +1,253 @@
+version: 1
+extends: "@agent-contracts/base-team"
+system:
+  id: full-system
+  name: Full Fixture
+  default_phase_order: [analyze, specify, plan, implement, audit, release, reflect]
+  x-system-meta:
+    tier: fixture
+
+agents:
+  main-architect:
+    role_name: Architect
+    purpose: Orchestrates work
+    can_read_artifacts: [spec-md, codebase]
+    can_write_artifacts: [review-note]
+    can_execute_tools: [gh-pr-inspect]
+    can_perform_validations: [evidence-gate-review]
+    can_invoke_agents: [implementer, test-writer]
+    can_return_handoffs: [evidence-gate-verdict]
+    dispatch_only: false
+    mode: read-write
+    responsibilities:
+      - Drive phases
+    constraints:
+      - Do not ship without audit
+    rules:
+      - id: R-ARCH-001
+        name: Evidence gate
+        description: Use structured criteria
+        severity: mandatory
+        detection_method: manual
+        escalation: stop
+        ref: docs/gates.md
+    anti_patterns:
+      - Skipping plan
+    escalation_criteria:
+      - condition: Conflicting audits
+        action: stop_and_report
+    prerequisites:
+      - action: read
+        target: spec-md
+        required: true
+    x-identity: |
+      Architect identity text
+    x-role-selection-guide:
+      - agent: implementer
+        condition: Backend code and infrastructure
+
+  implementer:
+    role_name: Implementer
+    purpose: Implements code
+    can_read_artifacts: [spec-md, codebase]
+    can_write_artifacts: [codebase]
+    can_execute_tools: [eslint-runner]
+    can_perform_validations: []
+    can_invoke_agents: []
+    can_return_handoffs: [dependency-evidence]
+    x-stack-notes: TypeScript service
+
+  test-writer:
+    role_name: Test Writer
+    purpose: Writes tests
+    can_read_artifacts: [codebase]
+    can_write_artifacts: [codebase]
+    can_execute_tools: []
+    can_perform_validations: []
+    can_invoke_agents: []
+    can_return_handoffs: [test-evidence]
+
+tasks:
+  implement-feature:
+    description: Implement from spec
+    target_agent: implementer
+    allowed_from_agents: [main-architect]
+    phase: implement
+    input_artifacts: [spec-md, codebase]
+    invocation_handoff: task-delegation
+    result_handoff: dependency-evidence
+    default_priority: P1
+    responsibilities:
+      - Implement all requirements
+    constraints:
+      - Add migrations for new tables
+    execution_steps:
+      - id: read-specs
+        action: Read spec-md
+        required: true
+      - id: implement
+        action: Change codebase
+        uses_tool: eslint-runner
+        produces_artifact: codebase
+        depends_on: [read-specs]
+        skip_condition: none
+        wait_for_approval: false
+    completion_criteria:
+      - Tests green
+    rules:
+      - id: R-FEAT-001
+        description: Update OpenAPI first
+        severity: mandatory
+    anti_patterns:
+      - Silent scope creep
+    escalation_criteria:
+      - condition: Blocked on external API
+        action: wait_for_approval
+    x-task-notes: Fixture task extensions
+
+artifacts:
+  spec-md:
+    type: document
+    description: Specification
+    owner: main-architect
+    producers: [main-architect]
+    editors: [main-architect]
+    consumers: [implementer]
+    states: [draft, reviewed]
+    required_validations: [spec-semantic-review]
+    visibility: internal
+    x-artifact-meta:
+      owner_team: platform
+  codebase:
+    type: code
+    owner: implementer
+    producers: [implementer]
+    editors: [implementer]
+    consumers: [main-architect, test-writer]
+    states: [wip, done]
+    required_validations: [code-lint]
+    x-path-hint: src/
+  review-note:
+    type: document
+    owner: main-architect
+    producers: [main-architect]
+    editors: [main-architect]
+    consumers: [implementer]
+    states: [draft]
+  lint-report:
+    type: report
+    owner: implementer
+    producers: [implementer]
+    editors: [implementer]
+    consumers: [main-architect]
+    states: [generated]
+
+tools:
+  gh-pr-inspect:
+    kind: cli
+    description: Inspect PR
+    input_artifacts: [codebase]
+    output_artifacts: []
+    invokable_by: [main-architect]
+    side_effects: []
+    x-rate-limit: low
+  eslint-runner:
+    kind: cli
+    description: Run ESLint
+    input_artifacts: [codebase]
+    output_artifacts: []
+    invokable_by: [implementer]
+    side_effects: []
+
+validations:
+  spec-semantic-review:
+    target_artifact: spec-md
+    kind: semantic
+    executor_type: agent
+    executor: main-architect
+    blocking: true
+    produces_evidence: review-note
+    x-validation-meta:
+      depth: full
+  code-lint:
+    target_artifact: codebase
+    kind: mechanical
+    executor_type: tool
+    executor: eslint-runner
+    blocking: true
+    produces_evidence: lint-report
+  evidence-gate-review:
+    target_artifact: codebase
+    kind: semantic
+    executor_type: agent
+    executor: main-architect
+    blocking: true
+
+handoff_types:
+  task-delegation:
+    version: 1
+    description: Delegation payload
+    payload:
+      type: object
+      required: [objective]
+      properties:
+        objective:
+          type: string
+    x-handoff-meta:
+      stable: true
+  dependency-evidence:
+    version: 1
+    description: Evidence payload
+    payload:
+      type: object
+      required: [changed_artifacts]
+      properties:
+        changed_artifacts:
+          type: array
+          items:
+            type: string
+  evidence-gate-verdict:
+    version: 1
+    payload:
+      type: object
+      required: [verdict]
+      properties:
+        verdict:
+          type: string
+  test-evidence:
+    version: 1
+    payload:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: string
+
+workflow:
+  implement:
+    entry_conditions:
+      - Plan approved
+    steps:
+      - type: handoff
+        handoff_kind: task-delegation
+        task: implement-feature
+        from_agent: main-architect
+      - type: validation
+        validation: code-lint
+      - type: decision
+        on: evidence-gate-verdict.verdict
+        branches:
+          PASS: [continue]
+          BLOCK: [stop]
+    x-workflow-meta:
+      fixture: true
+
+policies:
+  code-requires-lint:
+    when:
+      artifact_type: code
+    requires_validations: [code-lint]
+    requires:
+      - audit-reconciliation.combined_verdict == PASS
+    x-policy-meta:
+      severity: high

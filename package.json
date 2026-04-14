@@ -6,7 +6,13 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "agent-contracts": "dist/cli.js"
+    "agent-contracts": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "files": [
     "dist",
@@ -14,11 +20,14 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:unit": "vitest run test/unit",
+    "test:unit": "vitest run",
     "test:watch": "vitest",
+    "lint": "eslint src/ test/",
+    "typecheck": "tsc --noEmit",
+    "generate:schema": "tsx scripts/generate-json-schema.ts",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
@@ -44,10 +53,27 @@
   "bugs": {
     "url": "https://github.com/foo-ogawa/agent-contracts/issues"
   },
+  "dependencies": {
+    "@stoplight/spectral-core": "^1.22.0",
+    "@stoplight/spectral-rulesets": "^1.22.1",
+    "@stoplight/spectral-functions": "^1.9.0",
+    "commander": "^14.0.3",
+    "handlebars": "^4.7.9",
+    "yaml": "^2.8.3",
+    "zod": "^4.3.6",
+    "zod-to-json-schema": "^3.25.2"
+  },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.6.0",
+    "eslint": "^10.2.0",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.2",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=18.0.0"

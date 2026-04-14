@@ -1,0 +1,58 @@
+version: 1
+system:
+  id: minimal-system
+  name: Minimal Agent Workflow
+  default_phase_order:
+    - analyze
+    - implement
+
+agents:
+  implementer:
+    role_name: Implementer
+    purpose: Implements features
+    can_read_artifacts:
+      - codebase
+    can_write_artifacts:
+      - codebase
+    can_invoke_agents:
+      - implementer
+    can_return_handoffs:
+      - task-delegation
+      - dependency-evidence
+
+tasks:
+  implement-feature:
+    description: Implement a feature
+    target_agent: implementer
+    allowed_from_agents:
+      - implementer
+    phase: implement
+    input_artifacts:
+      - codebase
+    invocation_handoff: task-delegation
+    result_handoff: dependency-evidence
+
+artifacts:
+  codebase:
+    type: code
+    owner: implementer
+    producers:
+      - implementer
+    editors:
+      - implementer
+    consumers:
+      - implementer
+    states:
+      - draft
+
+tools: {}
+validations: {}
+handoff_types:
+  task-delegation:
+    version: 1
+    payload: {}
+  dependency-evidence:
+    version: 1
+    payload: {}
+workflow: {}
+policies: {}

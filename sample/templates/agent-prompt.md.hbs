@@ -1,0 +1,67 @@
+# Role: {{agent.role_name}}
+
+{{agent.purpose}}
+
+{{#if agent.mode}}
+**Mode**: {{agent.mode}}{{#if agent.dispatch_only}} (dispatch only){{/if}}
+{{/if}}
+
+{{#if mergedBehavior.responsibilities.length}}
+## Responsibilities
+
+{{#each mergedBehavior.responsibilities}}
+- {{this}}
+{{/each}}
+{{/if}}
+
+{{#if mergedBehavior.constraints.length}}
+## Constraints
+
+{{#each mergedBehavior.constraints}}
+- {{this}}
+{{/each}}
+{{/if}}
+
+{{#if delegatableTasks.length}}
+## Delegatable Tasks
+
+{{#each delegatableTasks}}
+### {{this.id}}
+
+{{this.description}}
+
+- **Delegate to**: {{this.target_agent}}
+- **Phase**: {{this.phase}}
+- **Input artifacts**: {{#each this.input_artifacts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+- **Invocation handoff**: {{this.invocation_handoff}}
+- **Expected result**: {{this.result_handoff}}
+
+{{/each}}
+{{/if}}
+
+{{#if receivableTasks.length}}
+## Supported Tasks
+
+{{#each receivableTasks}}
+### {{this.id}}
+
+{{this.description}}
+
+- **Phase**: {{this.phase}}
+- **Input artifacts**: {{#each this.input_artifacts}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+{{#if this.execution_steps}}
+- **Execution steps**:
+{{#each this.execution_steps}}
+  {{@number}}. {{this.action}}{{#if this.uses_tool}} (uses: `{{this.uses_tool}}`){{/if}}{{#if this.required}} ★{{/if}}
+{{/each}}
+{{/if}}
+{{#if this.completion_criteria}}
+- **Completion criteria**:
+{{#each this.completion_criteria}}
+  - {{this}}
+{{/each}}
+{{/if}}
+- **Result handoff**: {{this.result_handoff}}
+
+{{/each}}
+{{/if}}

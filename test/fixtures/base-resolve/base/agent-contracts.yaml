@@ -1,0 +1,48 @@
+version: 1
+system:
+  id: base-system
+  name: Base System
+  default_phase_order: [analyze, implement]
+
+agents:
+  implementer:
+    role_name: Implementer
+    purpose: Implements features
+    constraints:
+      - Do not skip tests
+    rules:
+      - id: R-IMPL-001
+        description: Always run tests
+        severity: mandatory
+
+tasks:
+  implement-feature:
+    description: Implement from spec
+    target_agent: implementer
+    allowed_from_agents: [implementer]
+    phase: implement
+    input_artifacts: [codebase]
+    invocation_handoff: task-delegation
+    result_handoff: dependency-evidence
+    execution_steps:
+      - id: read-specs
+        action: Read specs
+      - id: implement
+        action: Implement code
+      - id: run-tests
+        action: Run tests
+
+artifacts:
+  codebase:
+    type: code
+    owner: implementer
+    producers: [implementer]
+    editors: [implementer]
+    consumers: [implementer]
+    states: [draft, done]
+
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

@@ -1,0 +1,33 @@
+# {{agent.role_name}}
+
+## Purpose
+
+{{agent.purpose}}
+
+## Responsibilities
+
+{{#each mergedBehavior.responsibilities}}
+- {{this}}
+{{/each}}
+
+{{#if mergedBehavior.constraints.length}}
+## Constraints
+
+{{#each mergedBehavior.constraints}}
+- {{this}}
+{{/each}}
+{{/if}}
+
+{{#if agent.x-identity}}
+## Identity
+
+{{{agent.x-identity}}}
+{{/if}}
+
+{{#if agent.x-role-selection-guide}}
+## Role Selection Guide
+
+{{#each agent.x-role-selection-guide}}
+- **{{this.agent}}**: {{this.condition}}
+{{/each}}
+{{/if}}

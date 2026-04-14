@@ -1,0 +1,15 @@
+version: 1
+system:
+  id: multifile-system
+  name: Multi File Test
+  default_phase_order:
+    - implement
+
+agents: { $ref: "./agents.yaml" }
+tasks: { $ref: "./tasks.yaml" }
+artifacts: { $ref: "./artifacts.yaml" }
+tools: {}
+validations: {}
+handoff_types: {}
+workflow: {}
+policies: {}

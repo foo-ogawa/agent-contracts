@@ -1,0 +1,759 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "extends": {
+      "type": "string"
+    },
+    "system": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "default_phase_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "default_phase_order"
+      ],
+      "additionalProperties": {}
+    },
+    "agents": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "role_name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "can_read_artifacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "can_write_artifacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "can_execute_tools": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "can_perform_validations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "can_invoke_agents": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "can_return_handoffs": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dispatch_only": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "read-only",
+              "read-write"
+            ]
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "mandatory",
+                    "recommended",
+                    "optional"
+                  ]
+                },
+                "detection_method": {
+                  "type": "string"
+                },
+                "escalation": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "anti_patterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalation_criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "stop_and_report",
+                    "report_to_architect",
+                    "wait_for_approval"
+                  ]
+                }
+              },
+              "required": [
+                "condition",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "prerequisites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "execute"
+                  ]
+                },
+                "target": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "action",
+                "target",
+                "required"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "role_name",
+          "purpose",
+          "can_read_artifacts",
+          "can_write_artifacts",
+          "can_execute_tools",
+          "can_perform_validations",
+          "can_invoke_agents",
+          "can_return_handoffs"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "tasks": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "target_agent": {
+            "type": "string"
+          },
+          "allowed_from_agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "phase": {
+            "type": "string"
+          },
+          "input_artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "invocation_handoff": {
+            "type": "string"
+          },
+          "result_handoff": {
+            "type": "string"
+          },
+          "default_priority": {
+            "type": "string"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "execution_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "abort_on_failure": {
+                  "type": "boolean"
+                },
+                "uses_tool": {
+                  "type": "string"
+                },
+                "produces_artifact": {
+                  "type": "string"
+                },
+                "depends_on": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "skip_condition": {
+                  "type": "string"
+                },
+                "wait_for_approval": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "completion_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "mandatory",
+                    "recommended",
+                    "optional"
+                  ]
+                },
+                "detection_method": {
+                  "type": "string"
+                },
+                "escalation": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "anti_patterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalation_criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "condition": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "stop_and_report",
+                    "report_to_architect",
+                    "wait_for_approval"
+                  ]
+                }
+              },
+              "required": [
+                "condition",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "description",
+          "target_agent",
+          "allowed_from_agents",
+          "phase",
+          "input_artifacts",
+          "invocation_handoff",
+          "result_handoff"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "artifacts": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "producers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "editors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "consumers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_validations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "owner",
+          "producers",
+          "editors",
+          "consumers",
+          "states",
+          "required_validations"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "tools": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "input_artifacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "output_artifacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "invokable_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "side_effects": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "input_artifacts",
+          "output_artifacts",
+          "invokable_by",
+          "side_effects"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "validations": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "target_artifact": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "schema",
+              "mechanical",
+              "semantic",
+              "approval"
+            ]
+          },
+          "executor_type": {
+            "type": "string",
+            "enum": [
+              "tool",
+              "agent"
+            ]
+          },
+          "executor": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "produces_evidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_artifact",
+          "kind",
+          "executor_type",
+          "executor",
+          "blocking"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "handoff_types": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "version",
+          "payload"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "workflow": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "entry_conditions": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "handoff"
+                    },
+                    "handoff_kind": {
+                      "type": "string"
+                    },
+                    "task": {
+                      "type": "string"
+                    },
+                    "from_agent": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "handoff_kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "validation"
+                    },
+                    "validation": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "validation"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "decision"
+                    },
+                    "on": {
+                      "type": "string"
+                    },
+                    "branches": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "on",
+                    "branches"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "entry_conditions",
+          "steps"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "policies": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "when": {
+            "type": "object",
+            "properties": {
+              "artifact_type": {
+                "type": "string"
+              },
+              "phase": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": {}
+          },
+          "requires_validations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "when"
+        ],
+        "additionalProperties": {}
+      }
+    }
+  },
+  "required": [
+    "version",
+    "system",
+    "agents",
+    "tasks",
+    "artifacts",
+    "tools",
+    "validations",
+    "handoff_types",
+    "workflow",
+    "policies"
+  ],
+  "additionalProperties": {}
+}
