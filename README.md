@@ -1,6 +1,9 @@
 
 # agent-contracts
 
+[![npm version](https://img.shields.io/npm/v/agent-contracts.svg)](https://www.npmjs.com/package/agent-contracts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Design multi-agent systems as contracts.**
 
 `agent-contracts` is a toolkit for declaratively defining multi-agent development workflows in **YAML DSL**, with **static validation, semantic linting, and prompt rendering**.
