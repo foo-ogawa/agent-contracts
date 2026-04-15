@@ -39,12 +39,21 @@ export interface PerTaskContext {
 
 export interface PerArtifactContext {
   artifact: Artifact & { id: string };
+  relatedTools: Dsl["tools"];
+  relatedValidations: Dsl["validations"];
+  producerAgents: Dsl["agents"];
+  consumerAgents: Dsl["agents"];
+  editorAgents: Dsl["agents"];
+  createdInWorkflows: string[];
   dsl: Dsl;
   [key: string]: unknown;
 }
 
 export interface PerToolContext {
   tool: Tool & { id: string };
+  invokableAgents: Dsl["agents"];
+  inputArtifactDetails: Dsl["artifacts"];
+  outputArtifactDetails: Dsl["artifacts"];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -64,6 +73,11 @@ export interface PerHandoffTypeContext {
 
 export interface PerWorkflowContext {
   workflow: Workflow & { id: string };
+  relatedAgents: Dsl["agents"];
+  relatedTasks: Array<(Task & Record<string, unknown>) & { id: string }>;
+  relatedTools: Dsl["tools"];
+  relatedArtifacts: Dsl["artifacts"];
+  relatedValidations: Dsl["validations"];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -146,7 +160,65 @@ export function buildArtifactContext(
 ): PerArtifactContext {
   const artifactDef = dsl.artifacts[artifactId];
   const artifact = { ...artifactDef, id: artifactId } as Artifact & { id: string };
-  return { artifact, dsl };
+
+  const relatedTools: Dsl["tools"] = {};
+  for (const [id, tool] of Object.entries(dsl.tools)) {
+    if (
+      tool.input_artifacts.includes(artifactId) ||
+      tool.output_artifacts.includes(artifactId)
+    ) {
+      relatedTools[id] = tool;
+    }
+  }
+
+  const relatedValidations: Dsl["validations"] = {};
+  for (const [id, val] of Object.entries(dsl.validations)) {
+    if (val.target_artifact === artifactId) {
+      relatedValidations[id] = val;
+    }
+  }
+
+  const pickAgents = (ids: string[]): Dsl["agents"] => {
+    const result: Dsl["agents"] = {};
+    for (const id of ids) {
+      if (dsl.agents[id]) result[id] = dsl.agents[id];
+    }
+    return result;
+  };
+
+  const producerAgents = pickAgents(artifactDef.producers);
+  const consumerAgents = pickAgents(artifactDef.consumers);
+  const editorAgents = pickAgents(artifactDef.editors);
+
+  const createdInWorkflows: string[] = [];
+  for (const [_taskId, task] of Object.entries(dsl.tasks)) {
+    if (createdInWorkflows.includes(task.workflow)) continue;
+    const targetAgent = dsl.agents[task.target_agent];
+    if (targetAgent?.can_write_artifacts.includes(artifactId)) {
+      createdInWorkflows.push(task.workflow);
+      continue;
+    }
+    const steps = task.execution_steps ?? [];
+    for (const step of steps) {
+      if (
+        (step as Record<string, unknown>)["produces_artifact"] === artifactId
+      ) {
+        createdInWorkflows.push(task.workflow);
+        break;
+      }
+    }
+  }
+
+  return {
+    artifact,
+    relatedTools,
+    relatedValidations,
+    producerAgents,
+    consumerAgents,
+    editorAgents,
+    createdInWorkflows,
+    dsl,
+  };
 }
 
 export function buildToolContext(
@@ -155,7 +227,27 @@ export function buildToolContext(
 ): PerToolContext {
   const toolDef = dsl.tools[toolId];
   const tool = { ...toolDef, id: toolId } as Tool & { id: string };
-  return { tool, dsl };
+
+  const invokableAgents: Dsl["agents"] = {};
+  for (const agentId of toolDef.invokable_by) {
+    if (dsl.agents[agentId]) invokableAgents[agentId] = dsl.agents[agentId];
+  }
+
+  const pickArtifacts = (ids: string[]): Dsl["artifacts"] => {
+    const result: Dsl["artifacts"] = {};
+    for (const id of ids) {
+      if (dsl.artifacts[id]) result[id] = dsl.artifacts[id];
+    }
+    return result;
+  };
+
+  return {
+    tool,
+    invokableAgents,
+    inputArtifactDetails: pickArtifacts(toolDef.input_artifacts),
+    outputArtifactDetails: pickArtifacts(toolDef.output_artifacts),
+    dsl,
+  };
 }
 
 export function buildValidationContext(
@@ -189,7 +281,85 @@ export function buildWorkflowContext(
 ): PerWorkflowContext {
   const wfDef = dsl.workflow[workflowId];
   const workflow = { ...wfDef, id: workflowId } as Workflow & { id: string };
-  return { workflow, dsl };
+
+  const relatedTasks = Object.entries(dsl.tasks)
+    .filter(([, t]) => t.workflow === workflowId)
+    .map(([id, t]) => ({ ...t, id }) as (Task & Record<string, unknown>) & { id: string });
+
+  const agentIds = new Set<string>();
+  for (const task of relatedTasks) {
+    agentIds.add(task.target_agent);
+    for (const fromAgent of task.allowed_from_agents) {
+      agentIds.add(fromAgent);
+    }
+  }
+  for (const step of wfDef.steps) {
+    if (step.type === "handoff" && step.from_agent) {
+      agentIds.add(step.from_agent);
+    }
+    if (step.type === "validation") {
+      const val = dsl.validations[step.validation];
+      if (val?.executor_type === "agent" && val.executor) {
+        agentIds.add(val.executor);
+      }
+    }
+  }
+
+  const relatedAgents: Dsl["agents"] = {};
+  for (const id of agentIds) {
+    if (dsl.agents[id]) relatedAgents[id] = dsl.agents[id];
+  }
+
+  const toolIds = new Set<string>();
+  for (const id of agentIds) {
+    const agent = dsl.agents[id];
+    if (agent) {
+      for (const toolId of agent.can_execute_tools) {
+        toolIds.add(toolId);
+      }
+    }
+  }
+  const relatedTools: Dsl["tools"] = {};
+  for (const id of toolIds) {
+    if (dsl.tools[id]) relatedTools[id] = dsl.tools[id];
+  }
+
+  const artifactIds = new Set<string>();
+  for (const task of relatedTasks) {
+    for (const artId of task.input_artifacts) artifactIds.add(artId);
+  }
+  for (const id of agentIds) {
+    const agent = dsl.agents[id];
+    if (agent) {
+      for (const artId of agent.can_read_artifacts) artifactIds.add(artId);
+      for (const artId of agent.can_write_artifacts) artifactIds.add(artId);
+    }
+  }
+  const relatedArtifacts: Dsl["artifacts"] = {};
+  for (const id of artifactIds) {
+    if (dsl.artifacts[id]) relatedArtifacts[id] = dsl.artifacts[id];
+  }
+
+  const validationIds = new Set<string>();
+  for (const step of wfDef.steps) {
+    if (step.type === "validation") {
+      validationIds.add(step.validation);
+    }
+  }
+  const relatedValidations: Dsl["validations"] = {};
+  for (const id of validationIds) {
+    if (dsl.validations[id]) relatedValidations[id] = dsl.validations[id];
+  }
+
+  return {
+    workflow,
+    relatedAgents,
+    relatedTasks,
+    relatedTools,
+    relatedArtifacts,
+    relatedValidations,
+    dsl,
+  };
 }
 
 export function buildPolicyContext(

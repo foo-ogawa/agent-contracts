@@ -77,6 +77,7 @@ export async function loadConfig(
 
   return {
     dsl: resolve(configDir, config.dsl),
+    vars: config.vars,
     renders: config.renders.map((r) => ({
       ...r,
       template: resolve(configDir, r.template),

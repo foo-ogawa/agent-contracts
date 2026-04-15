@@ -45,6 +45,7 @@ export type RenderTarget = z.infer<typeof RenderTargetSchema>;
 
 export const AgentContractsConfigSchema = z.object({
   dsl: z.string(),
+  vars: z.record(z.string(), z.string()).optional(),
   renders: z.array(RenderTargetSchema).min(1),
 });
 
@@ -60,6 +61,7 @@ export interface ResolvedRenderTarget {
 
 export interface ResolvedConfig {
   dsl: string;
+  vars?: Record<string, string>;
   renders: ResolvedRenderTarget[];
   configDir: string;
 }

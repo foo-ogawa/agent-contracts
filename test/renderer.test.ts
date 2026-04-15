@@ -178,6 +178,179 @@ describe("renderFromConfig", () => {
   });
 });
 
+describe("Handlebars helpers", () => {
+  it("join helper concatenates array with separator", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "join.hbs");
+    await writeFile(tplPath, "{{join agent.can_read_artifacts \", \"}}");
+    const outPattern = join(TEMP_DIR, "out", "{agent.id}.md");
+
+    const dsl: Dsl = {
+      ...createMinimalDsl(),
+      agents: {
+        dev: {
+          ...createMinimalDsl().agents["dev"],
+          can_read_artifacts: ["spec", "code", "plan"],
+        },
+      },
+    };
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "agent", output: outPattern },
+    ];
+    await renderFromConfig(dsl, targets);
+    const content = await readFile(join(TEMP_DIR, "out", "dev.md"), "utf8");
+    expect(content).toBe("spec, code, plan");
+  });
+
+  it("contains helper returns true when array includes value", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "contains.hbs");
+    await writeFile(
+      tplPath,
+      "{{#if (contains agent.can_read_artifacts \"spec\")}}YES{{else}}NO{{/if}}",
+    );
+    const outPattern = join(TEMP_DIR, "out", "{agent.id}.md");
+
+    const dsl: Dsl = {
+      ...createMinimalDsl(),
+      agents: {
+        dev: {
+          ...createMinimalDsl().agents["dev"],
+          can_read_artifacts: ["spec", "code"],
+        },
+      },
+    };
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "agent", output: outPattern },
+    ];
+    await renderFromConfig(dsl, targets);
+    const content = await readFile(join(TEMP_DIR, "out", "dev.md"), "utf8");
+    expect(content).toBe("YES");
+  });
+
+  it("keys helper returns object keys", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "keys.hbs");
+    await writeFile(tplPath, "{{#each (keys dsl.agents)}}{{this}} {{/each}}");
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    await renderFromConfig(createMinimalDsl(), targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toContain("dev");
+    expect(content).toContain("reviewer");
+  });
+
+  it("size helper returns count for objects and arrays", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "size.hbs");
+    await writeFile(tplPath, "agents={{size dsl.agents}} phases={{size system.default_workflow_order}}");
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    await renderFromConfig(createMinimalDsl(), targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toBe("agents=2 phases=1");
+  });
+
+  it("filterByField helper filters arrays by field value", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "filter.hbs");
+    await writeFile(
+      tplPath,
+      "{{#each (filterByField items \"status\" \"active\")}}{{this.name}} {{/each}}",
+    );
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const dsl: Dsl = {
+      ...createMinimalDsl(),
+      system: {
+        ...createMinimalDsl().system,
+        "x-items": [
+          { name: "a", status: "active" },
+          { name: "b", status: "inactive" },
+          { name: "c", status: "active" },
+        ],
+      } as Dsl["system"],
+    };
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    const tplContent = "{{#each (filterByField system.x-items \"status\" \"active\")}}{{this.name}} {{/each}}";
+    await writeFile(tplPath, tplContent);
+    await renderFromConfig(dsl, targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toBe("a c ");
+  });
+
+  it("or/and/not helpers work as boolean combinators", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "logic.hbs");
+    await writeFile(
+      tplPath,
+      "{{#if (or false true)}}OR{{/if}} {{#if (and true true)}}AND{{/if}} {{#if (not false)}}NOT{{/if}}",
+    );
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    await renderFromConfig(createMinimalDsl(), targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toBe("OR AND NOT");
+  });
+
+  it("gt/lt/gte helpers work for numeric comparisons", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "cmp.hbs");
+    await writeFile(
+      tplPath,
+      "{{#if (gt (size dsl.agents) 1)}}MANY{{/if}}",
+    );
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    await renderFromConfig(createMinimalDsl(), targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toBe("MANY");
+  });
+
+  it("groupBy helper groups array elements by key", async () => {
+    const tplPath = join(TEMP_DIR, "tpl", "group.hbs");
+    const tplContent = [
+      "{{#with (groupBy items \"category\") as |groups|}}",
+      "{{#each groups}}{{@key}}:{{this.length}} {{/each}}",
+      "{{/with}}",
+    ].join("");
+    await writeFile(tplPath, tplContent);
+    const outPath = join(TEMP_DIR, "out", "overview.md");
+
+    const dsl: Dsl = {
+      ...createMinimalDsl(),
+      system: {
+        ...createMinimalDsl().system,
+        "x-items": [
+          { name: "a", category: "alpha" },
+          { name: "b", category: "beta" },
+          { name: "c", category: "alpha" },
+        ],
+      } as Dsl["system"],
+    };
+    const tplContentFinal = [
+      "{{#with (groupBy system.x-items \"category\") as |groups|}}",
+      "{{#each groups}}{{@key}}:{{this.length}} {{/each}}",
+      "{{/with}}",
+    ].join("");
+    await writeFile(tplPath, tplContentFinal);
+    const targets: ResolvedRenderTarget[] = [
+      { template: tplPath, context: "system", output: outPath },
+    ];
+    await renderFromConfig(dsl, targets);
+    const content = await readFile(outPath, "utf8");
+    expect(content).toContain("alpha:2");
+    expect(content).toContain("beta:1");
+  });
+});
+
 describe("checkDriftFromConfig", () => {
   it("reports no drift when files match", async () => {
     const tplPath = join(TEMP_DIR, "tpl", "agent.hbs");

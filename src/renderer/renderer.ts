@@ -124,6 +124,85 @@ Handlebars.registerHelper("yamlBlock", (obj: unknown): string => {
   return toYamlLines(obj, 0).join("\n");
 });
 
+Handlebars.registerHelper(
+  "join",
+  (arr: unknown, separator: unknown): string => {
+    if (!Array.isArray(arr)) return "";
+    const sep = typeof separator === "string" ? separator : ", ";
+    return arr.join(sep);
+  },
+);
+
+Handlebars.registerHelper("contains", (arr: unknown, value: unknown): boolean => {
+  if (!Array.isArray(arr)) return false;
+  return arr.includes(value);
+});
+
+Handlebars.registerHelper(
+  "groupBy",
+  (arr: unknown, key: string): Record<string, unknown[]> => {
+    if (!Array.isArray(arr)) return {};
+    const result: Record<string, unknown[]> = {};
+    for (const item of arr) {
+      const k = String(
+        (item as Record<string, unknown>)?.[key] ?? "undefined",
+      );
+      (result[k] ??= []).push(item);
+    }
+    return result;
+  },
+);
+
+Handlebars.registerHelper(
+  "keys",
+  (obj: unknown): string[] => {
+    if (!obj || typeof obj !== "object") return [];
+    return Object.keys(obj as Record<string, unknown>);
+  },
+);
+
+Handlebars.registerHelper(
+  "values",
+  (obj: unknown): unknown[] => {
+    if (!obj || typeof obj !== "object") return [];
+    return Object.values(obj as Record<string, unknown>);
+  },
+);
+
+Handlebars.registerHelper(
+  "filterByField",
+  (arr: unknown, field: string, value: unknown): unknown[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (item) => (item as Record<string, unknown>)?.[field] === value,
+    );
+  },
+);
+
+Handlebars.registerHelper("not", (value: unknown): boolean => !value);
+
+Handlebars.registerHelper("or", (...args: unknown[]): boolean => {
+  const _options = args.pop();
+  return args.some((a) => !!a);
+});
+
+Handlebars.registerHelper("and", (...args: unknown[]): boolean => {
+  const _options = args.pop();
+  return args.every((a) => !!a);
+});
+
+Handlebars.registerHelper("gt", (a: number, b: number): boolean => a > b);
+
+Handlebars.registerHelper("gte", (a: number, b: number): boolean => a >= b);
+
+Handlebars.registerHelper("lt", (a: number, b: number): boolean => a < b);
+
+Handlebars.registerHelper("size", (obj: unknown): number => {
+  if (Array.isArray(obj)) return obj.length;
+  if (obj && typeof obj === "object") return Object.keys(obj as Record<string, unknown>).length;
+  return 0;
+});
+
 function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> {
   const sectionMap: Record<string, Record<string, unknown>> = {
     agent: dsl.agents,

@@ -169,6 +169,32 @@ describe("buildArtifactContext", () => {
     expect(ctx.artifact.type).toBe("code");
     expect(ctx.dsl).toBe(dsl);
   });
+
+  it("includes relatedTools that reference the artifact as input or output", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildArtifactContext(dsl, "source-code");
+    expect(ctx.relatedTools).toHaveProperty("lint");
+  });
+
+  it("includes relatedValidations targeting the artifact", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildArtifactContext(dsl, "source-code");
+    expect(ctx.relatedValidations).toHaveProperty("code-review");
+  });
+
+  it("resolves producer, consumer, and editor agents", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildArtifactContext(dsl, "source-code");
+    expect(ctx.producerAgents).toHaveProperty("dev");
+    expect(ctx.consumerAgents).toHaveProperty("reviewer");
+    expect(ctx.editorAgents).toHaveProperty("dev");
+  });
+
+  it("lists workflows where the artifact is written", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildArtifactContext(dsl, "source-code");
+    expect(ctx.createdInWorkflows).toContain("implement");
+  });
 });
 
 describe("buildToolContext", () => {
@@ -178,6 +204,20 @@ describe("buildToolContext", () => {
     expect(ctx.tool.id).toBe("lint");
     expect(ctx.tool.kind).toBe("static-analysis");
     expect(ctx.dsl).toBe(dsl);
+  });
+
+  it("resolves invokableAgents from invokable_by", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildToolContext(dsl, "lint");
+    expect(ctx.invokableAgents).toHaveProperty("dev");
+    expect(Object.keys(ctx.invokableAgents)).toHaveLength(1);
+  });
+
+  it("resolves input and output artifact details", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildToolContext(dsl, "lint");
+    expect(ctx.inputArtifactDetails).toHaveProperty("source-code");
+    expect(Object.keys(ctx.outputArtifactDetails)).toHaveLength(0);
   });
 });
 
@@ -208,6 +248,51 @@ describe("buildWorkflowContext", () => {
     expect(ctx.workflow.id).toBe("plan");
     expect(ctx.workflow.steps).toHaveLength(1);
     expect(ctx.dsl).toBe(dsl);
+  });
+
+  it("collects relatedTasks matching the workflow phase", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    const taskIds = ctx.relatedTasks.map((t) => t.id);
+    expect(taskIds).toContain("implement-feature");
+    expect(taskIds).toContain("review-code");
+  });
+
+  it("does not include tasks from other phases", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "plan");
+    expect(ctx.relatedTasks).toHaveLength(0);
+  });
+
+  it("collects relatedAgents from tasks and workflow steps", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    expect(ctx.relatedAgents).toHaveProperty("dev");
+    expect(ctx.relatedAgents).toHaveProperty("reviewer");
+  });
+
+  it("collects relatedTools from agents involved in the phase", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    expect(ctx.relatedTools).toHaveProperty("lint");
+  });
+
+  it("collects relatedArtifacts from tasks and agents", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    expect(ctx.relatedArtifacts).toHaveProperty("source-code");
+  });
+
+  it("collects relatedValidations from workflow steps", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    expect(ctx.relatedValidations).toHaveProperty("code-review");
+  });
+
+  it("includes agent executor from validation step", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildWorkflowContext(dsl, "implement");
+    expect(ctx.relatedAgents).toHaveProperty("reviewer");
   });
 });
 
