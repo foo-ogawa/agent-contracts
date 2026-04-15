@@ -244,6 +244,7 @@ Design regressions become testable.
 * **Structured handoff definitions**
 * **Artifact ownership and lifecycle modeling**
 * **Config-driven prompt rendering**
+* **Variable substitution** via `${vars.xxx}` in DSL values
 * **Inheritance with merge operators via `extends`**
 * **Flexible file splitting** via `$ref` (replacement) and `$refs` (import + deep-merge)
 * **JSON Schema for editor support and external tooling**
@@ -533,6 +534,67 @@ Supported merge operators:
 
 ---
 
+## Variable substitution
+
+When using `extends` to share a base DSL across projects, base definitions often contain values that differ per project (project name, language, repository URL, etc.).
+
+`vars` in `agent-contracts.config.yaml` lets you define project-specific values that are substituted into DSL string values using `${vars.xxx}` syntax.
+
+### Defining vars
+
+Add a `vars` section to your config file. Values must be flat string key-value pairs.
+
+````yaml
+# agent-contracts.config.yaml
+vars:
+  project_name: "my-service"
+  language: "TypeScript"
+  repo_url: "https://github.com/org/my-service"
+````
+
+### Using placeholders in DSL
+
+Use `${vars.<key>}` in any string value within the DSL YAML (base or project).
+
+````yaml
+# base/agent-contracts.yaml
+agents:
+  implementer:
+    purpose: "Implements features for ${vars.project_name}"
+    constraints:
+      - "Use ${vars.language} for all implementations"
+      - "Repository: ${vars.repo_url}"
+````
+
+### Processing order
+
+Variable substitution happens **after** DSL resolution (`extends` merge) and **before** schema validation:
+
+1. Load config (including `vars`)
+2. Resolve DSL (load + merge `extends`)
+3. Substitute `${vars.xxx}` in all string values
+4. Validate schema
+5. Render / lint / check
+
+This ensures that merged strings from both base and project are substituted, and the resulting values pass schema validation.
+
+### Error handling
+
+If a placeholder references an undefined variable, the command exits with an error:
+
+````
+VarsSubstitutionError: Undefined variable "repo_url" in value "Repository: ${vars.repo_url}"
+  Defined vars: project_name, language
+````
+
+### Notes
+
+- Only string values are substituted; object keys are not affected.
+- `vars` is optional. If omitted, no substitution occurs.
+- Patterns that do not match `${vars.<key>}` (e.g. `${env.HOME}`, `$vars.xxx`, `{{vars.xxx}}`) are left unchanged.
+
+---
+
 ## CLI
 
 ### Installation
@@ -575,6 +637,11 @@ Rendering is configured via `agent-contracts.config.yaml`.
 
 ````yaml
 dsl: ./agent-contracts.yaml
+
+vars:
+  project_name: "my-service"
+  language: "TypeScript"
+  repo_url: "https://github.com/org/my-service"
 
 renders:
   - template: ./templates/agent-prompt.md.hbs

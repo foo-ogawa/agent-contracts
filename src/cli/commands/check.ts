@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { loadConfig, ConfigLoadError } from "../../config/index.js";
-import { resolve } from "../../resolver/index.js";
+import { resolve, substituteVars } from "../../resolver/index.js";
 import { validateSchema, checkReferences } from "../../validator/index.js";
 import { lint, spectralLint } from "../../linter/index.js";
 import { checkDriftFromConfig } from "../../renderer/index.js";
@@ -31,8 +31,11 @@ export const checkCommand = new Command("check")
         }
 
         const resolved = await resolve(config.dsl);
+        const data = config.vars
+          ? substituteVars(resolved.data, config.vars)
+          : resolved.data;
 
-        const schemaResult = validateSchema(resolved.data);
+        const schemaResult = validateSchema(data);
         if (!schemaResult.success) {
           const output = formatDiagnostics(schemaResult.diagnostics, {
             format: opts.format,

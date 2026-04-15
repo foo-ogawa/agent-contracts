@@ -101,6 +101,42 @@ describe("loadConfig", () => {
     }
   });
 
+  it("loads config with vars", async () => {
+    const configPath = join(TEMP_DIR, "vars.yaml");
+    await writeFile(
+      configPath,
+      `dsl: ./agent-contracts.yaml\nvars:\n  project_name: my-app\n  language: TypeScript\nrenders:\n  - template: ./tpl/agent.hbs\n    context: agent\n    output: ./out/{agent.id}.md\n`,
+    );
+
+    const config = await loadConfig(configPath);
+    expect(config).not.toBeNull();
+    expect(config!.vars).toEqual({
+      project_name: "my-app",
+      language: "TypeScript",
+    });
+  });
+
+  it("loads config without vars (optional)", async () => {
+    const configPath = join(TEMP_DIR, "no-vars.yaml");
+    await writeFile(
+      configPath,
+      `dsl: ./agent-contracts.yaml\nrenders:\n  - template: ./tpl/agent.hbs\n    context: agent\n    output: ./out/{agent.id}.md\n`,
+    );
+
+    const config = await loadConfig(configPath);
+    expect(config).not.toBeNull();
+    expect(config!.vars).toBeUndefined();
+  });
+
+  it("rejects non-string vars values", async () => {
+    const configPath = join(TEMP_DIR, "bad-vars.yaml");
+    await writeFile(
+      configPath,
+      `dsl: ./a.yaml\nvars:\n  count: 42\nrenders:\n  - template: ./t.hbs\n    context: agent\n    output: ./out.md\n`,
+    );
+    await expect(loadConfig(configPath)).rejects.toThrow(ConfigLoadError);
+  });
+
   it("resolves relative paths from config directory", async () => {
     const subDir = join(TEMP_DIR, "sub");
     await mkdir(subDir, { recursive: true });

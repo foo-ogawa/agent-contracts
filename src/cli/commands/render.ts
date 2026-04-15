@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { loadConfig, ConfigLoadError } from "../../config/index.js";
-import { resolve } from "../../resolver/index.js";
+import { resolve, substituteVars } from "../../resolver/index.js";
 import { validateSchema } from "../../validator/index.js";
 import { renderFromConfig, checkDriftFromConfig } from "../../renderer/index.js";
 
@@ -21,7 +21,10 @@ export const renderCommand = new Command("render")
         }
 
         const resolved = await resolve(config.dsl);
-        const schemaResult = validateSchema(resolved.data);
+        const data = config.vars
+          ? substituteVars(resolved.data, config.vars)
+          : resolved.data;
+        const schemaResult = validateSchema(data);
 
         if (!schemaResult.success) {
           process.stderr.write(

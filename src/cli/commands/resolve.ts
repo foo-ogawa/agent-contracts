@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { loadConfig, resolveDslPath } from "../../config/index.js";
-import { resolve } from "../../resolver/index.js";
+import { resolve, substituteVars } from "../../resolver/index.js";
 import { stringify } from "yaml";
 
 const DIR_DEFAULT = "agent-contracts.yaml";
@@ -15,10 +15,13 @@ export const resolveCommand = new Command("resolve")
       const config = await loadConfig(opts.config);
       const dslPath = resolveDslPath(dir, DIR_DEFAULT, config);
       const result = await resolve(dslPath);
+      const data = config?.vars
+        ? substituteVars(result.data, config.vars)
+        : result.data;
       if (opts.format === "json") {
-        process.stdout.write(JSON.stringify(result.data, null, 2) + "\n");
+        process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       } else {
-        process.stdout.write(stringify(result.data));
+        process.stdout.write(stringify(data));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

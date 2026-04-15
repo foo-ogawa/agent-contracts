@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { loadConfig, resolveDslPath } from "../../config/index.js";
-import { resolve } from "../../resolver/index.js";
+import { resolve, substituteVars } from "../../resolver/index.js";
 import { validateSchema, checkReferences } from "../../validator/index.js";
 import { formatDiagnostics, type FormatOptions } from "../format.js";
 
@@ -17,7 +17,10 @@ export const validateCommand = new Command("validate")
       const config = await loadConfig(opts.config);
       const dslPath = resolveDslPath(dir, DIR_DEFAULT, config);
       const resolved = await resolve(dslPath);
-      const schemaResult = validateSchema(resolved.data);
+      const data = config?.vars
+        ? substituteVars(resolved.data, config.vars)
+        : resolved.data;
+      const schemaResult = validateSchema(data);
 
       if (!schemaResult.success) {
         const output = formatDiagnostics(schemaResult.diagnostics, opts);
