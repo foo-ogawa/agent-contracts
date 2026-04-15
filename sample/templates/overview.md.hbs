@@ -4,7 +4,7 @@
 
   Available variables:
     system               - System object with id, name, default_workflow_order,
-                           default_phase_order, and any x-* extension properties
+                           and any x-* extension properties
     dsl                  - Full DSL object containing all entities:
       dsl.agents           Record<id, Agent>
       dsl.tasks            Record<id, Task>
@@ -21,6 +21,15 @@
     eq                   - {{#if (eq a b)}} — strict equality
     yamlBlock            - {{{yamlBlock obj}}} — render object as YAML text
     lookupPayloadFields  - {{#each (lookupPayloadFields payload)}} — extract field info
+    join                 - {{join arr ", "}} — join array elements with separator
+    contains             - {{#if (contains arr "x")}} — true when array includes value
+    groupBy              - {{#with (groupBy arr "key")}} — group array by field value
+    filterByField        - {{#each (filterByField arr "field" "value")}} — filter array
+    keys                 - {{#each (keys obj)}} — object keys as array
+    values               - {{#each (values obj)}} — object values as array
+    size                 - {{size obj}} — array length or object key count
+    not / or / and       - {{#if (not x)}} {{#if (or a b)}} {{#if (and a b)}}
+    gt / gte / lt        - {{#if (gt a b)}} — numeric comparisons
 
   Notes:
     - All dsl.* entries are Record objects. Use {{@key}} to get the entity id
@@ -31,7 +40,7 @@
 
 ## Phases
 
-{{#each system.default_phase_order}}
+{{#each system.default_workflow_order}}
 1. **{{this}}**
 {{/each}}
 

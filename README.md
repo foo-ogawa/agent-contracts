@@ -597,6 +597,67 @@ This lets you generate static outputs for:
 
 all from the same resolved DSL.
 
+### Available context types
+
+Each `context` type provides a different rendering scope:
+
+| Context | Scope | Output | Key variables |
+|---------|-------|--------|---------------|
+| `system` | Single file | `output` as-is | `system`, `dsl` |
+| `agent` | Per agent | `{agent.id}` in output path | `agent`, `receivableTasks`, `delegatableTasks`, `relatedArtifacts`, `relatedTools`, `relatedHandoffTypes`, `mergedBehavior`, `dsl` |
+| `task` | Per task | `{task.id}` in output path | `task`, `targetAgent`, `dsl` |
+| `artifact` | Per artifact | `{artifact.id}` in output path | `artifact`, `relatedTools`, `relatedValidations`, `producerAgents`, `consumerAgents`, `editorAgents`, `createdInWorkflows`, `dsl` |
+| `tool` | Per tool | `{tool.id}` in output path | `tool`, `invokableAgents`, `inputArtifactDetails`, `outputArtifactDetails`, `dsl` |
+| `validation` | Per validation | `{validation.id}` in output path | `validation`, `dsl` |
+| `handoff_type` | Per handoff type | `{handoff_type.id}` in output path | `handoff_type`, `relatedTasks`, `dsl` |
+| `workflow` | Per workflow phase | `{workflow.id}` in output path | `workflow`, `relatedAgents`, `relatedTasks`, `relatedTools`, `relatedArtifacts`, `relatedValidations`, `dsl` |
+| `policy` | Per policy | `{policy.id}` in output path | `policy`, `dsl` |
+
+#### Enriched context details
+
+**`workflow` context** collects all entities involved in a phase:
+
+* `relatedTasks` — tasks where `task.workflow` matches this phase
+* `relatedAgents` — agents from task `target_agent`, `allowed_from_agents`, step `from_agent`, and validation executors
+* `relatedTools` — tools from `can_execute_tools` of all related agents
+* `relatedArtifacts` — artifacts from `can_read_artifacts`, `can_write_artifacts`, and `input_artifacts`
+* `relatedValidations` — validations referenced in workflow steps
+
+**`artifact` context** provides ownership and cross-reference data:
+
+* `relatedTools` — tools with this artifact in `input_artifacts` or `output_artifacts`
+* `relatedValidations` — validations targeting this artifact
+* `producerAgents` / `consumerAgents` / `editorAgents` — resolved agent records
+* `createdInWorkflows` — workflow phases where this artifact is written
+
+**`tool` context** resolves agent and artifact references:
+
+* `invokableAgents` — agents listed in `invokable_by`
+* `inputArtifactDetails` / `outputArtifactDetails` — resolved artifact records
+
+### Handlebars helpers
+
+Templates can use these built-in helpers:
+
+| Helper | Usage | Description |
+|--------|-------|-------------|
+| `eq` | `{{#if (eq a b)}}` | Strict equality |
+| `notEmpty` | `{{#if (notEmpty obj)}}` | True when object has at least one key |
+| `inc` | `{{inc @index}}` | Increment number by 1 (for 1-based indexing) |
+| `yamlBlock` | `{{{yamlBlock obj}}}` | Render value as YAML-formatted text |
+| `lookupPayloadFields` | `{{#each (lookupPayloadFields payload)}}` | Extract payload field info (name, type, required, enum) |
+| `join` | `{{join arr ", "}}` | Join array elements with separator |
+| `contains` | `{{#if (contains arr "x")}}` | True when array includes value |
+| `groupBy` | `{{#with (groupBy arr "key")}}` | Group array elements by field value |
+| `filterByField` | `{{#each (filterByField arr "field" "val")}}` | Filter array by field match |
+| `keys` | `{{#each (keys obj)}}` | Object keys as array |
+| `values` | `{{#each (values obj)}}` | Object values as array |
+| `size` | `{{size obj}}` | Array length or object key count |
+| `not` | `{{#if (not x)}}` | Boolean negation |
+| `or` | `{{#if (or a b)}}` | Boolean OR (variadic) |
+| `and` | `{{#if (and a b)}}` | Boolean AND (variadic) |
+| `gt` / `gte` / `lt` | `{{#if (gt a b)}}` | Numeric comparisons |
+
 ---
 
 ## Validation model

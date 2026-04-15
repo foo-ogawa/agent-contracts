@@ -27,6 +27,15 @@
     eq                   - {{#if (eq a b)}} — strict equality
     yamlBlock            - {{{yamlBlock obj}}} — render object as YAML text
     lookupPayloadFields  - {{#each (lookupPayloadFields payload)}} — extract field info
+    join                 - {{join arr ", "}} — join array elements with separator
+    contains             - {{#if (contains arr "x")}} — true when array includes value
+    groupBy              - {{#with (groupBy arr "key")}} — group array by field value
+    filterByField        - {{#each (filterByField arr "field" "value")}} — filter array
+    keys                 - {{#each (keys obj)}} — object keys as array
+    values               - {{#each (values obj)}} — object values as array
+    size                 - {{size obj}} — array length or object key count
+    not / or / and       - {{#if (not x)}} {{#if (or a b)}} {{#if (and a b)}}
+    gt / gte / lt        - {{#if (gt a b)}} — numeric comparisons
 
   Notes:
     - Record objects (relatedArtifacts, relatedTools, relatedHandoffTypes) use
