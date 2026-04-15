@@ -35,6 +35,7 @@ export const TaskSchema = z
     rules: z.array(RuleSchema).optional(),
     anti_patterns: z.array(z.string()).optional(),
     escalation_criteria: z.array(EscalationCriterionSchema).optional(),
+    validations: z.array(z.string()).default([]),
   })
   .passthrough();
 export type Task = z.infer<typeof TaskSchema>;

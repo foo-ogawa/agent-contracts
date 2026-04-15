@@ -21,30 +21,38 @@ function collectPhaseOps(dsl: Dsl, wfId: string): PhaseOps {
 
   const taskMap = new Map(ctx.relatedTasks.map((t) => [t.id, t]));
 
+  function collectTaskOps(task: { target_agent: string; execution_steps?: Array<{ reads_artifact?: string; produces_artifact?: string; uses_tool?: string; action: string }> }): void {
+    addOp(agentOps, task.target_agent, "execute");
+    for (const es of task.execution_steps ?? []) {
+      if (es.reads_artifact) addOp(artifactOps, es.reads_artifact, "R");
+      if (es.produces_artifact) addOp(artifactOps, es.produces_artifact, "W");
+      if (es.uses_tool) {
+        const tool = dsl.tools[es.uses_tool];
+        if (tool) {
+          const cats = tool.commands
+            .map((c) => c.category)
+            .filter((v, i, a) => a.indexOf(v) === i);
+          for (const cat of cats) addOp(toolOps, es.uses_tool, cat);
+          if (cats.length === 0) addOp(toolOps, es.uses_tool, "✓");
+        } else {
+          addOp(toolOps, es.uses_tool, "✓");
+        }
+      }
+    }
+  }
+
   for (const step of wf.steps) {
-    if (step.type === "handoff") {
+    if (step.type === "delegate") {
+      addOp(agentOps, step.from_agent, "delegate");
+      const task = taskMap.get(step.task);
+      if (task) collectTaskOps(task);
+    } else if (step.type === "gate") {
+      // gate is a self-referencing review step; no additional ops to collect
+    } else if (step.type === "handoff") {
       if (step.from_agent) addOp(agentOps, step.from_agent, "delegate");
       if (step.task) {
         const task = taskMap.get(step.task);
-        if (task) {
-          addOp(agentOps, task.target_agent, "execute");
-          for (const es of task.execution_steps ?? []) {
-            if (es.reads_artifact) addOp(artifactOps, es.reads_artifact, "R");
-            if (es.produces_artifact) addOp(artifactOps, es.produces_artifact, "W");
-            if (es.uses_tool) {
-              const tool = dsl.tools[es.uses_tool];
-              if (tool) {
-                const cats = tool.commands
-                  .map((c) => c.category)
-                  .filter((v, i, a) => a.indexOf(v) === i);
-                for (const cat of cats) addOp(toolOps, es.uses_tool, cat);
-                if (cats.length === 0) addOp(toolOps, es.uses_tool, "✓");
-              } else {
-                addOp(toolOps, es.uses_tool, "✓");
-              }
-            }
-          }
-        }
+        if (task) collectTaskOps(task);
       }
     } else if (step.type === "validation") {
       const val = dsl.validations[step.validation];

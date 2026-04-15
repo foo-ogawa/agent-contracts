@@ -15,6 +15,27 @@ const ExternalParticipantSchema = z.object({
 });
 export type ExternalParticipant = z.infer<typeof ExternalParticipantSchema>;
 
+const WorkflowDelegateStepSchema = z
+  .object({
+    type: z.literal("delegate"),
+    description: z.string().optional(),
+    task: z.string(),
+    from_agent: z.string(),
+    group: z.string().optional(),
+    retry: RetrySchema.optional(),
+  })
+  .passthrough();
+
+const WorkflowGateStepSchema = z
+  .object({
+    type: z.literal("gate"),
+    description: z.string().optional(),
+    gate_kind: z.string(),
+    group: z.string().optional(),
+  })
+  .passthrough();
+
+/** @deprecated Use `delegate` for task execution, `gate` for review steps */
 const WorkflowHandoffStepSchema = z
   .object({
     type: z.literal("handoff"),
@@ -27,6 +48,7 @@ const WorkflowHandoffStepSchema = z
   })
   .passthrough();
 
+/** @deprecated Use task.validations instead */
 const WorkflowValidationStepSchema = z
   .object({
     type: z.literal("validation"),
@@ -47,6 +69,8 @@ const WorkflowDecisionStepSchema = z
   .passthrough();
 
 export const WorkflowStepSchema = z.discriminatedUnion("type", [
+  WorkflowDelegateStepSchema,
+  WorkflowGateStepSchema,
   WorkflowHandoffStepSchema,
   WorkflowValidationStepSchema,
   WorkflowDecisionStepSchema,

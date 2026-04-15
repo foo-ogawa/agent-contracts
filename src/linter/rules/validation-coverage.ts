@@ -41,21 +41,26 @@ export const validationCoverageRule: LintRule = {
       }
     }
 
-    const validationsReferencedInWorkflow = new Set<string>();
+    const referencedValidations = new Set<string>();
     for (const wf of Object.values(dsl.workflow)) {
       for (const step of wf.steps) {
         if (step.type === "validation") {
-          validationsReferencedInWorkflow.add(step.validation);
+          referencedValidations.add(step.validation);
         }
       }
     }
+    for (const task of Object.values(dsl.tasks)) {
+      for (const valId of task.validations) {
+        referencedValidations.add(valId);
+      }
+    }
     for (const [valId, val] of Object.entries(dsl.validations)) {
-      if (val.blocking && !validationsReferencedInWorkflow.has(valId)) {
+      if (val.blocking && !referencedValidations.has(valId)) {
         diagnostics.push({
           ruleId: "validation-coverage",
           severity: "warning",
           path: `validations.${valId}`,
-          message: `Blocking validation "${valId}" is not referenced in any workflow step`,
+          message: `Blocking validation "${valId}" is not referenced in any workflow step or task`,
         });
       }
     }

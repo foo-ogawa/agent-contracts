@@ -77,6 +77,7 @@ tasks:
     invocation_handoff: task-delegation
     result_handoff: dependency-evidence
     default_priority: P1
+    validations: [code-lint]
     responsibilities:
       - Implement all requirements
     constraints:
@@ -105,6 +106,19 @@ tasks:
       - condition: Blocked on external API
         action: wait_for_approval
     x-task-notes: Fixture task extensions
+  run-spec-lint:
+    description: Run spec linter
+    target_agent: main-architect
+    allowed_from_agents: [main-architect]
+    workflow: specify
+    input_artifacts: [spec-md]
+    invocation_handoff: task-delegation
+    result_handoff: evidence-gate-verdict
+    validations: [spec-semantic-review]
+    execution_steps:
+      - id: lint
+        action: Run spec lint
+        reads_artifact: spec-md
 
 artifacts:
   spec-md:
@@ -264,6 +278,14 @@ workflow:
           BLOCK: [stop]
     x-workflow-meta:
       fixture: true
+  specify:
+    description: "Specification phase using delegate/gate types"
+    steps:
+      - type: delegate
+        task: run-spec-lint
+        from_agent: main-architect
+      - type: gate
+        gate_kind: evidence-gate-verdict
 
 policies:
   code-requires-lint:

@@ -62,33 +62,37 @@ function collectReferencedIds(
   const taskMap = new Map<string, Task & { id: string }>();
   for (const t of relatedTasks) taskMap.set(t.id, t);
 
+  function collectTaskIds(task: Task & { id: string }): void {
+    addAgent(task.target_agent);
+    for (const es of task.execution_steps ?? []) {
+      collectExecutionStepIds(es, tools, artifacts);
+    }
+  }
+
+  function collectRetryIds(retry: { fix_task: string; revalidate_task?: string }): void {
+    const fixTask = taskMap.get(retry.fix_task);
+    if (fixTask) collectTaskIds(fixTask);
+    if (retry.revalidate_task) {
+      const revalTask = taskMap.get(retry.revalidate_task);
+      if (revalTask) addAgent(revalTask.target_agent);
+    }
+  }
+
   for (const step of workflow.steps) {
-    if (step.type === "handoff") {
+    if (step.type === "delegate") {
+      addAgent(step.from_agent);
+      const task = taskMap.get(step.task);
+      if (task) collectTaskIds(task);
+      if (step.retry) collectRetryIds(step.retry);
+    } else if (step.type === "gate") {
+      // gate is a self-referencing step on the last from_agent
+    } else if (step.type === "handoff") {
       if (step.from_agent) addAgent(step.from_agent);
       if (step.task) {
         const task = taskMap.get(step.task);
-        if (task) {
-          addAgent(task.target_agent);
-          for (const es of task.execution_steps ?? []) {
-            collectExecutionStepIds(es, tools, artifacts);
-          }
-        }
+        if (task) collectTaskIds(task);
       }
-      if (step.retry) {
-        const fixTask = taskMap.get(step.retry.fix_task);
-        if (fixTask) {
-          addAgent(fixTask.target_agent);
-          for (const es of fixTask.execution_steps ?? []) {
-            collectExecutionStepIds(es, tools, artifacts);
-          }
-        }
-        if (step.retry.revalidate_task) {
-          const revalTask = taskMap.get(step.retry.revalidate_task);
-          if (revalTask) {
-            addAgent(revalTask.target_agent);
-          }
-        }
-      }
+      if (step.retry) collectRetryIds(step.retry);
     } else if (step.type === "validation") {
       const val = dsl.validations[step.validation];
       if (val) {
@@ -353,17 +357,53 @@ function emitDecisionStep(
   lines.push(`${indent}end`);
 }
 
-function emitRetryBlock(
-  step: Extract<WorkflowStep, { type: "handoff" }>,
+function emitDelegateStep(
+  step: Extract<WorkflowStep, { type: "delegate" }>,
   participants: ParticipantInfo[],
   dsl: Dsl,
   relatedTasks: Array<Task & { id: string }>,
   lines: string[],
   indent: string,
 ): void {
-  const retry = step.retry;
-  if (!retry) return;
+  const taskMap = new Map<string, Task & { id: string }>();
+  for (const t of relatedTasks) taskMap.set(t.id, t);
 
+  const task = taskMap.get(step.task);
+  if (!task) return;
+
+  const fromAlias = participantAlias(participants, step.from_agent);
+  const targetAlias = participantAlias(participants, task.target_agent);
+
+  lines.push(`${indent}${fromAlias}->>${targetAlias}: delegate ${step.task}`);
+
+  for (const es of task.execution_steps ?? []) {
+    emitExecutionStep(es, targetAlias, participants, lines, indent);
+  }
+
+  lines.push(`${indent}${targetAlias}-->>${fromAlias}: ${task.result_handoff}`);
+}
+
+function emitGateStep(
+  step: Extract<WorkflowStep, { type: "gate" }>,
+  participants: ParticipantInfo[],
+  lastFromAgent: string | undefined,
+  lines: string[],
+  indent: string,
+): void {
+  if (lastFromAgent) {
+    const agentAl = participantAlias(participants, lastFromAgent);
+    lines.push(`${indent}${agentAl}->>${agentAl}: ${step.gate_kind}`);
+  }
+}
+
+function emitRetryBlock(
+  fromAgent: string | undefined,
+  retry: { condition: string; fix_task: string; revalidate_task?: string },
+  participants: ParticipantInfo[],
+  relatedTasks: Array<Task & { id: string }>,
+  lines: string[],
+  indent: string,
+): void {
   const taskMap = new Map<string, Task & { id: string }>();
   for (const t of relatedTasks) taskMap.set(t.id, t);
 
@@ -372,8 +412,8 @@ function emitRetryBlock(
 
   const fixTask = taskMap.get(retry.fix_task);
   if (fixTask) {
-    const fromAlias = step.from_agent
-      ? participantAlias(participants, step.from_agent)
+    const fromAlias = fromAgent
+      ? participantAlias(participants, fromAgent)
       : null;
     const targetAlias = participantAlias(participants, fixTask.target_agent);
     if (fromAlias) {
@@ -390,8 +430,8 @@ function emitRetryBlock(
   if (retry.revalidate_task) {
     const revalTask = taskMap.get(retry.revalidate_task);
     if (revalTask) {
-      const fromAlias = step.from_agent
-        ? participantAlias(participants, step.from_agent)
+      const fromAlias = fromAgent
+        ? participantAlias(participants, fromAgent)
         : null;
       const revalAlias = participantAlias(participants, revalTask.target_agent);
       if (fromAlias) {
@@ -510,11 +550,19 @@ function emitStep(
   lastFromAgent: string | undefined,
   setLastFromAgent: (a: string) => void,
 ): void {
-  if (step.type === "handoff") {
+  if (step.type === "delegate") {
+    setLastFromAgent(step.from_agent);
+    emitDelegateStep(step, participants, dsl, relatedTasks, lines, indent);
+    if (step.retry) {
+      emitRetryBlock(step.from_agent, step.retry, participants, relatedTasks, lines, indent);
+    }
+  } else if (step.type === "gate") {
+    emitGateStep(step, participants, lastFromAgent, lines, indent);
+  } else if (step.type === "handoff") {
     if (step.from_agent) setLastFromAgent(step.from_agent);
     emitHandoffStep(step, participants, dsl, relatedTasks, lines, indent);
     if (step.retry) {
-      emitRetryBlock(step, participants, dsl, relatedTasks, lines, indent);
+      emitRetryBlock(step.from_agent, step.retry, participants, relatedTasks, lines, indent);
     }
   } else if (step.type === "validation") {
     emitValidationStep(step, participants, dsl, lastFromAgent, lines, indent);

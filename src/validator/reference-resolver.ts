@@ -119,13 +119,21 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
     for (const ref of task.input_artifacts) {
       checkExists(ref, artifactIds, "artifacts", `tasks.${id}.input_artifacts`);
     }
+    for (const ref of task.validations) {
+      checkExists(ref, validationIds, "validations", `tasks.${id}.validations`);
+    }
   }
 
   for (const [wfId, wf] of Object.entries(dsl.workflow)) {
     checkExists(wfId, workflowIds, "system.default_workflow_order", `workflow.${wfId}`);
     for (let j = 0; j < wf.steps.length; j++) {
       const step = wf.steps[j];
-      if (step.type === "handoff") {
+      if (step.type === "delegate") {
+        checkExists(step.task, taskIds, "tasks", `workflow.${wfId}.steps[${j}].task`);
+        checkExists(step.from_agent, agentIds, "agents", `workflow.${wfId}.steps[${j}].from_agent`);
+      } else if (step.type === "gate") {
+        checkExists(step.gate_kind, handoffKinds, "handoff_types", `workflow.${wfId}.steps[${j}].gate_kind`);
+      } else if (step.type === "handoff") {
         if (step.task) {
           checkExists(step.task, taskIds, "tasks", `workflow.${wfId}.steps[${j}].task`);
         }

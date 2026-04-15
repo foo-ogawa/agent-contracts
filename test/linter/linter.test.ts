@@ -96,6 +96,31 @@ describe("validationCoverageRule", () => {
     const diags = validationCoverageRule.run(dsl);
     expect(diags.filter((d) => d.message.includes("Blocking validation"))).toHaveLength(0);
   });
+
+  it("passes when blocking validation is referenced in task.validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: { type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "approval", executor_type: "agent", executor: "a1", blocking: true },
+      },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          validations: ["v1"],
+        },
+      },
+      handoff_types: {
+        h: { version: 1, payload: {} },
+        r: { version: 1, payload: {} },
+      },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    expect(diags.filter((d) => d.message.includes("Blocking validation"))).toHaveLength(0);
+  });
 });
 
 describe("toolExecutionRule", () => {

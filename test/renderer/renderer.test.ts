@@ -489,6 +489,177 @@ describe("generateSequenceDiagram", () => {
     expect(output).toContain("box rgb(255,220,220) Audit");
   });
 
+  it("emits delegate step with task and result arrows", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["build"] },
+      agents: {
+        arch: { role_name: "Architect", purpose: "P", can_invoke_agents: ["dev"] },
+        dev: { role_name: "Developer", purpose: "P", can_write_artifacts: ["code"], can_return_handoffs: ["result"] },
+      },
+      tasks: {
+        "write-code": {
+          description: "Write code",
+          target_agent: "dev",
+          allowed_from_agents: ["arch"],
+          workflow: "build",
+          input_artifacts: [],
+          invocation_handoff: "start",
+          result_handoff: "result",
+          execution_steps: [
+            { id: "w", action: "Write files", produces_artifact: "code" },
+          ],
+        },
+      },
+      artifacts: {
+        code: { type: "code", owner: "dev", producers: ["dev"], editors: ["dev"], consumers: [], states: ["done"] },
+      },
+      workflow: {
+        build: {
+          steps: [
+            { type: "delegate", task: "write-code", from_agent: "arch" },
+          ],
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "build");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("delegate write-code");
+    expect(output).toContain("result");
+    expect(output).toContain("[W] Write files");
+  });
+
+  it("emits gate step as self-note on last from_agent", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["review"] },
+      agents: {
+        arch: { role_name: "Architect", purpose: "P", can_invoke_agents: ["dev"] },
+        dev: { role_name: "Developer", purpose: "P", can_return_handoffs: ["result"] },
+      },
+      tasks: {
+        "do-work": {
+          description: "Work",
+          target_agent: "dev",
+          allowed_from_agents: ["arch"],
+          workflow: "review",
+          input_artifacts: [],
+          invocation_handoff: "start",
+          result_handoff: "result",
+        },
+      },
+      handoff_types: {
+        "evidence-gate": {
+          version: 1,
+          payload: { type: "object", properties: { verdict: { type: "string" } } },
+        },
+      },
+      workflow: {
+        review: {
+          steps: [
+            { type: "delegate", task: "do-work", from_agent: "arch" },
+            { type: "gate", gate_kind: "evidence-gate" },
+          ],
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "review");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("delegate do-work");
+    expect(output).toContain("evidence-gate");
+  });
+
+  it("emits retry block for delegate step", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["build"] },
+      agents: {
+        arch: { role_name: "Architect", purpose: "P", can_invoke_agents: ["dev"] },
+        dev: { role_name: "Developer", purpose: "P", can_return_handoffs: ["result"] },
+      },
+      tasks: {
+        "write-code": {
+          description: "Write code",
+          target_agent: "dev",
+          allowed_from_agents: ["arch"],
+          workflow: "build",
+          input_artifacts: [],
+          invocation_handoff: "start",
+          result_handoff: "result",
+        },
+      },
+      workflow: {
+        build: {
+          steps: [
+            {
+              type: "delegate",
+              task: "write-code",
+              from_agent: "arch",
+              retry: { condition: "Lint failures", fix_task: "write-code" },
+            },
+          ],
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "build");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("opt Lint failures");
+    expect(output).toContain("fix write-code");
+  });
+
+  it("emits par block for grouped delegate steps", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["audit"] },
+      agents: {
+        arch: { role_name: "Architect", purpose: "P", can_invoke_agents: ["pol1", "pol2"] },
+        pol1: { role_name: "Police A", purpose: "P", mode: "read-only", can_return_handoffs: ["result"] },
+        pol2: { role_name: "Police B", purpose: "P", mode: "read-only", can_return_handoffs: ["result"] },
+      },
+      tasks: {
+        "audit-a": {
+          description: "A",
+          target_agent: "pol1",
+          allowed_from_agents: ["arch"],
+          workflow: "audit",
+          input_artifacts: [],
+          invocation_handoff: "delegation",
+          result_handoff: "result",
+        },
+        "audit-b": {
+          description: "B",
+          target_agent: "pol2",
+          allowed_from_agents: ["arch"],
+          workflow: "audit",
+          input_artifacts: [],
+          invocation_handoff: "delegation",
+          result_handoff: "result",
+        },
+      },
+      workflow: {
+        audit: {
+          steps: [
+            { type: "delegate", task: "audit-a", from_agent: "arch", group: "police-audit" },
+            { type: "delegate", task: "audit-b", from_agent: "arch", group: "police-audit" },
+          ],
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "audit");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("par police-audit");
+    expect(output).toContain("and");
+    expect(output).toContain("box rgb(255,220,220) Audit");
+  });
+
+  it("generates sequence diagram with delegate and gate from fixture", () => {
+    const ctx = buildWorkflowContext(fullDsl, "specify");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+    expect(output).toContain("sequenceDiagram");
+    expect(output).toContain("delegate run-spec-lint");
+    expect(output).toContain("evidence-gate-verdict");
+  });
+
   it("separates read-only agents into Audit box", () => {
     const dsl = DslSchema.parse({
       version: 1,

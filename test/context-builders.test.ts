@@ -258,10 +258,12 @@ describe("buildWorkflowContext", () => {
     expect(taskIds).toContain("review-code");
   });
 
-  it("does not include tasks from other phases", () => {
+  it("includes tasks referenced by workflow steps even from other phases", () => {
     const dsl = createMinimalDsl();
     const ctx = buildWorkflowContext(dsl, "plan");
-    expect(ctx.relatedTasks).toHaveLength(0);
+    const taskIds = ctx.relatedTasks.map((t) => t.id);
+    expect(taskIds).toContain("implement-feature");
+    expect(taskIds).not.toContain("review-code");
   });
 
   it("collects relatedAgents from tasks and workflow steps", () => {

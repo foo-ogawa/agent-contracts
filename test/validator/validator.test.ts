@@ -223,6 +223,82 @@ describe("checkReferences", () => {
     expect(diagnostics.some((d) => d.message.includes("nonexistent"))).toBe(true);
   });
 
+  it("detects non-existent task in delegate workflow step", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "delegate", task: "missing-task", from_agent: "a1" },
+          ],
+        },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.message.includes("missing-task"))).toBe(true);
+  });
+
+  it("detects non-existent agent in delegate workflow step", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "delegate", task: "t1", from_agent: "missing-agent" },
+          ],
+        },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.message.includes("missing-agent"))).toBe(true);
+  });
+
+  it("detects non-existent handoff_type in gate workflow step", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "gate", gate_kind: "missing-gate" },
+          ],
+        },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.message.includes("missing-gate"))).toBe(true);
+  });
+
+  it("detects non-existent validation in task.validations", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      tasks: {
+        t1: {
+          description: "d",
+          target_agent: "a1",
+          allowed_from_agents: ["a1"],
+          workflow: "impl",
+          input_artifacts: [],
+          invocation_handoff: "h",
+          result_handoff: "r",
+          validations: ["missing-val"],
+        },
+      },
+      handoff_types: {
+        h: { version: 1, payload: {} },
+        r: { version: 1, payload: {} },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.message.includes("missing-val"))).toBe(true);
+  });
+
   it("detects non-existent validation in workflow step", () => {
     const dsl = DslSchema.parse({
       version: 1,

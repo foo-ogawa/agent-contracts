@@ -282,8 +282,25 @@ export function buildWorkflowContext(
   const wfDef = dsl.workflow[workflowId];
   const workflow = { ...wfDef, id: workflowId } as Workflow & { id: string };
 
+  const stepReferencedTaskIds = new Set<string>();
+  for (const step of wfDef.steps) {
+    if (step.type === "delegate") {
+      stepReferencedTaskIds.add(step.task);
+      if (step.retry) {
+        stepReferencedTaskIds.add(step.retry.fix_task);
+        if (step.retry.revalidate_task) stepReferencedTaskIds.add(step.retry.revalidate_task);
+      }
+    } else if (step.type === "handoff" && step.task) {
+      stepReferencedTaskIds.add(step.task);
+      if (step.retry) {
+        stepReferencedTaskIds.add(step.retry.fix_task);
+        if (step.retry.revalidate_task) stepReferencedTaskIds.add(step.retry.revalidate_task);
+      }
+    }
+  }
+
   const relatedTasks = Object.entries(dsl.tasks)
-    .filter(([, t]) => t.workflow === workflowId)
+    .filter(([id, t]) => t.workflow === workflowId || stepReferencedTaskIds.has(id))
     .map(([id, t]) => ({ ...t, id }) as (Task & Record<string, unknown>) & { id: string });
 
   const agentIds = new Set<string>();
@@ -294,7 +311,9 @@ export function buildWorkflowContext(
     }
   }
   for (const step of wfDef.steps) {
-    if (step.type === "handoff" && step.from_agent) {
+    if (step.type === "delegate") {
+      agentIds.add(step.from_agent);
+    } else if (step.type === "handoff" && step.from_agent) {
       agentIds.add(step.from_agent);
     }
     if (step.type === "validation") {
@@ -353,6 +372,11 @@ export function buildWorkflowContext(
   for (const step of wfDef.steps) {
     if (step.type === "validation") {
       validationIds.add(step.validation);
+    }
+  }
+  for (const task of relatedTasks) {
+    for (const valId of task.validations ?? []) {
+      validationIds.add(valId);
     }
   }
   const relatedValidations: Dsl["validations"] = {};

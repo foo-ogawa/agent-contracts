@@ -120,6 +120,16 @@ describe("schema normal cases", () => {
     expect(() => TaskSchema.parse(minimalValidTask)).not.toThrow();
   });
 
+  it("defaults TaskSchema validations to []", () => {
+    const t = TaskSchema.parse(minimalValidTask);
+    expect(t.validations).toEqual([]);
+  });
+
+  it("parses TaskSchema with validations", () => {
+    const t = TaskSchema.parse({ ...minimalValidTask, validations: ["v1", "v2"] });
+    expect(t.validations).toEqual(["v1", "v2"]);
+  });
+
   it("parses ArtifactSchema", () => {
     const a = ArtifactSchema.parse(minimalValidArtifact);
     expect(a.required_validations).toEqual([]);
@@ -306,6 +316,57 @@ describe("WorkflowStepSchema discriminated union", () => {
     if (s.type === "decision") {
       expect(s.on).toBe("field.path");
       expect(s.branches.B).toEqual([]);
+    }
+  });
+
+  it("parses delegate step", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "delegate",
+      task: "implement-feature",
+      from_agent: "architect",
+    });
+    expect(s.type).toBe("delegate");
+    if (s.type === "delegate") {
+      expect(s.task).toBe("implement-feature");
+      expect(s.from_agent).toBe("architect");
+    }
+  });
+
+  it("parses delegate step with retry and group", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "delegate",
+      task: "implement-feature",
+      from_agent: "architect",
+      group: "impl-group",
+      retry: { condition: "Lint fails", fix_task: "fix-lint" },
+    });
+    expect(s.type).toBe("delegate");
+    if (s.type === "delegate") {
+      expect(s.group).toBe("impl-group");
+      expect(s.retry).toBeDefined();
+    }
+  });
+
+  it("parses gate step", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "gate",
+      gate_kind: "evidence-gate",
+    });
+    expect(s.type).toBe("gate");
+    if (s.type === "gate") {
+      expect(s.gate_kind).toBe("evidence-gate");
+    }
+  });
+
+  it("parses gate step with group", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "gate",
+      gate_kind: "evidence-gate",
+      group: "review-group",
+    });
+    expect(s.type).toBe("gate");
+    if (s.type === "gate") {
+      expect(s.group).toBe("review-group");
     }
   });
 

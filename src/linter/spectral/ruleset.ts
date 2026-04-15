@@ -206,6 +206,18 @@ const ruleset: RulesetDefinition = {
       },
     },
 
+    "task-validations-ref": {
+      description: "Task validations must reference existing validations",
+      message: "{{error}}",
+      severity: "error",
+      given: "$.tasks.*",
+      then: {
+        field: "validations",
+        function: refExists,
+        functionOptions: { referenceTo: "validations" },
+      },
+    },
+
     "validation-target-artifact-ref": {
       description:
         "Validation target_artifact must reference an existing artifact",
@@ -257,7 +269,7 @@ const ruleset: RulesetDefinition = {
 
     "workflow-step-refs": {
       description:
-        "Workflow step references (handoff_kind, task, from_agent, validation) must exist",
+        "Workflow step references (task, from_agent, gate_kind, handoff_kind, validation) must exist",
       message: "{{error}}",
       severity: "error",
       given: "$.workflow.*",

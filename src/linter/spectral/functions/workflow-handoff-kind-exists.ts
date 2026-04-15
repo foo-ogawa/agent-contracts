@@ -3,6 +3,7 @@ import { createRulesetFunction } from "@stoplight/spectral-core";
 type WorkflowStep = {
   type: string;
   handoff_kind?: string;
+  gate_kind?: string;
   task?: string;
   from_agent?: string;
   validation?: string;
@@ -36,6 +37,30 @@ export default createRulesetFunction<WorkflowPhase, null>(
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const stepPath = [...context.path, "steps", i];
+
+      if (step.type === "delegate") {
+        if (step.task && !taskKeys.has(step.task)) {
+          results.push({
+            message: `task "${step.task}" does not exist in tasks`,
+            path: [...stepPath, "task"],
+          });
+        }
+        if (step.from_agent && !agentKeys.has(step.from_agent)) {
+          results.push({
+            message: `from_agent "${step.from_agent}" does not exist in agents`,
+            path: [...stepPath, "from_agent"],
+          });
+        }
+      }
+
+      if (step.type === "gate") {
+        if (step.gate_kind && !handoffKeys.has(step.gate_kind)) {
+          results.push({
+            message: `gate_kind "${step.gate_kind}" does not exist in handoff_types`,
+            path: [...stepPath, "gate_kind"],
+          });
+        }
+      }
 
       if (step.type === "handoff") {
         if (step.handoff_kind && !handoffKeys.has(step.handoff_kind)) {
