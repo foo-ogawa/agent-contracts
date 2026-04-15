@@ -206,10 +206,25 @@ Handlebars.registerHelper("size", (obj: unknown): number => {
 
 Handlebars.registerHelper(
   "sequenceDiagram",
-  function (this: Record<string, unknown>): string {
+  function (this: Record<string, unknown>, ...args: unknown[]): string {
+    const opts = args[args.length - 1] as { hash?: Record<string, unknown> };
+    const positionalArgs = args.slice(0, -1);
+
+    if (typeof positionalArgs[0] === "string" && positionalArgs[1]) {
+      const workflowId = positionalArgs[0] as string;
+      const dsl = positionalArgs[1] as Dsl;
+      if (!dsl.workflow[workflowId]) return "";
+      const ctx = buildWorkflowContext(dsl, workflowId);
+      return generateSequenceDiagram(
+        ctx.workflow as Parameters<typeof generateSequenceDiagram>[0],
+        ctx.relatedTasks as Parameters<typeof generateSequenceDiagram>[1],
+        dsl,
+      );
+    }
+
     const workflow = this["workflow"] as Parameters<typeof generateSequenceDiagram>[0];
     const relatedTasks = this["relatedTasks"] as Parameters<typeof generateSequenceDiagram>[1];
-    const dsl = this["dsl"] as Parameters<typeof generateSequenceDiagram>[2];
+    const dsl = (opts?.hash?.["dsl"] ?? this["dsl"]) as Parameters<typeof generateSequenceDiagram>[2];
     if (!workflow || !dsl) return "";
     return generateSequenceDiagram(workflow, relatedTasks ?? [], dsl);
   },
