@@ -15,6 +15,7 @@ import {
   buildPolicyContext,
 } from "./context.js";
 import { generateSequenceDiagram } from "./sequence-diagram.js";
+import { generateOverviewFlowchart } from "./overview-flowchart.js";
 
 Handlebars.registerHelper("eq", (a: unknown, b: unknown) => a === b);
 
@@ -227,6 +228,21 @@ Handlebars.registerHelper(
     const dsl = (opts?.hash?.["dsl"] ?? this["dsl"]) as Parameters<typeof generateSequenceDiagram>[2];
     if (!workflow || !dsl) return "";
     return generateSequenceDiagram(workflow, relatedTasks ?? [], dsl);
+  },
+);
+
+Handlebars.registerHelper(
+  "overviewFlowchart",
+  function (this: Record<string, unknown>, ...args: unknown[]): string {
+    const positionalArgs = args.slice(0, -1);
+
+    if (positionalArgs[0] && typeof positionalArgs[0] === "object") {
+      return generateOverviewFlowchart(positionalArgs[0] as Dsl);
+    }
+
+    const dsl = this["dsl"] as Dsl | undefined;
+    if (!dsl) return "";
+    return generateOverviewFlowchart(dsl);
   },
 );
 

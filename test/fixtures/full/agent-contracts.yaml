@@ -151,14 +151,26 @@ tools:
     output_artifacts: []
     invokable_by: [main-architect]
     side_effects: []
+    commands:
+      - command: "gh pr view"
+        category: pre-analysis
+        reads: [codebase]
+        writes: []
+        purpose: "View PR details"
     x-rate-limit: low
   eslint-runner:
     kind: cli
     description: Run ESLint
     input_artifacts: [codebase]
-    output_artifacts: []
+    output_artifacts: [lint-report]
     invokable_by: [implementer]
     side_effects: []
+    commands:
+      - command: "eslint src/"
+        category: verification
+        reads: [codebase]
+        writes: [lint-report]
+        purpose: "Run ESLint on source code"
 
 validations:
   spec-semantic-review:
@@ -226,13 +238,23 @@ handoff_types:
 
 workflow:
   implement:
+    description: "Implementation phase with full features"
     entry_conditions:
       - Plan approved
+    external_participants:
+      - id: user
+        kind: actor
+        label: User
+        description: "Feature requester"
+    trigger: "User requests implementation"
     steps:
       - type: handoff
         handoff_kind: task-delegation
         task: implement-feature
         from_agent: main-architect
+        retry:
+          condition: "Lint failures found"
+          fix_task: implement-feature
       - type: validation
         validation: code-lint
       - type: decision

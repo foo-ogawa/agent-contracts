@@ -5,13 +5,14 @@ import type {
   Workflow,
   WorkflowStep,
   ExecutionStep,
+  ExternalParticipant,
 } from "../schema/index.js";
 
 interface ParticipantInfo {
   id: string;
   alias: string;
   label: string;
-  group: "agents" | "toolchain" | "artifacts";
+  group: "external" | "agents" | "audit" | "toolchain" | "artifacts";
 }
 
 function hashToColor(s: string, saturation: number, lightness: number): string {
@@ -43,6 +44,7 @@ function agentAlias(id: string, agent: Agent): string {
 
 interface CollectedIds {
   agents: Set<string>;
+  auditAgents: Set<string>;
   tools: Set<string>;
   artifacts: Set<string>;
 }
@@ -53,6 +55,7 @@ function collectReferencedIds(
   relatedTasks: Array<Task & { id: string }>,
 ): CollectedIds {
   const agents = new Set<string>();
+  const auditAgents = new Set<string>();
   const tools = new Set<string>();
   const artifacts = new Set<string>();
 
@@ -61,29 +64,51 @@ function collectReferencedIds(
 
   for (const step of workflow.steps) {
     if (step.type === "handoff") {
-      if (step.from_agent) agents.add(step.from_agent);
+      if (step.from_agent) addAgent(step.from_agent);
       if (step.task) {
         const task = taskMap.get(step.task);
         if (task) {
-          agents.add(task.target_agent);
+          addAgent(task.target_agent);
           for (const es of task.execution_steps ?? []) {
             collectExecutionStepIds(es, tools, artifacts);
+          }
+        }
+      }
+      if (step.retry) {
+        const fixTask = taskMap.get(step.retry.fix_task);
+        if (fixTask) {
+          addAgent(fixTask.target_agent);
+          for (const es of fixTask.execution_steps ?? []) {
+            collectExecutionStepIds(es, tools, artifacts);
+          }
+        }
+        if (step.retry.revalidate_task) {
+          const revalTask = taskMap.get(step.retry.revalidate_task);
+          if (revalTask) {
+            addAgent(revalTask.target_agent);
           }
         }
       }
     } else if (step.type === "validation") {
       const val = dsl.validations[step.validation];
       if (val) {
-        if (val.executor_type === "agent") agents.add(val.executor);
+        if (val.executor_type === "agent") addAgent(val.executor);
         else tools.add(val.executor);
         artifacts.add(val.target_artifact);
       }
-    } else if (step.type === "decision") {
-      // decisions reference agents contextually via the most recent from_agent
     }
   }
 
-  return { agents, tools, artifacts };
+  function addAgent(agentId: string): void {
+    const agent = dsl.agents[agentId];
+    if (agent?.mode === "read-only") {
+      auditAgents.add(agentId);
+    } else {
+      agents.add(agentId);
+    }
+  }
+
+  return { agents, auditAgents, tools, artifacts };
 }
 
 function collectExecutionStepIds(
@@ -98,6 +123,7 @@ function collectExecutionStepIds(
 
 function buildParticipants(
   ids: CollectedIds,
+  externals: ExternalParticipant[],
   dsl: Dsl,
 ): ParticipantInfo[] {
   const participants: ParticipantInfo[] = [];
@@ -114,11 +140,23 @@ function buildParticipants(
     return alias;
   }
 
+  for (const ep of externals) {
+    const alias = uniqueAlias(sanitizeAlias(ep.id));
+    participants.push({ id: ep.id, alias, label: ep.label, group: "external" });
+  }
+
   for (const id of ids.agents) {
     const agent = dsl.agents[id];
     if (!agent) continue;
     const alias = uniqueAlias(agentAlias(id, agent));
     participants.push({ id, alias, label: agent.role_name, group: "agents" });
+  }
+
+  for (const id of ids.auditAgents) {
+    const agent = dsl.agents[id];
+    if (!agent) continue;
+    const alias = uniqueAlias(agentAlias(id, agent));
+    participants.push({ id, alias, label: agent.role_name, group: "audit" });
   }
 
   for (const id of ids.tools) {
@@ -145,18 +183,39 @@ function participantAlias(participants: ParticipantInfo[], id: string): string {
 
 function emitParticipants(
   participants: ParticipantInfo[],
+  externals: ExternalParticipant[],
   lines: string[],
   indent: string,
 ): void {
   const groups: Record<string, ParticipantInfo[]> = {
+    external: [],
     agents: [],
+    audit: [],
     toolchain: [],
     artifacts: [],
   };
   for (const p of participants) groups[p.group].push(p);
 
+  const externalMap = new Map<string, ExternalParticipant>();
+  for (const ep of externals) externalMap.set(ep.id, ep);
+
+  if (groups.external.length > 0) {
+    lines.push(`${indent}box rgb(255,245,230) External`);
+    for (const p of groups.external) {
+      const ep = externalMap.get(p.id);
+      const keyword = ep?.kind === "actor" ? "actor" : "participant";
+      if (p.alias === p.label) {
+        lines.push(`${indent}${keyword} ${p.alias}`);
+      } else {
+        lines.push(`${indent}${keyword} ${p.alias} as ${p.label}`);
+      }
+    }
+    lines.push(`${indent}end`);
+  }
+
   const groupConfig: Array<{ key: string; label: string; color: string }> = [
     { key: "agents", label: "Agents", color: "rgb(200,220,255)" },
+    { key: "audit", label: "Audit", color: "rgb(255,220,220)" },
     { key: "toolchain", label: "Toolchain", color: "rgb(220,255,220)" },
     { key: "artifacts", label: "Artifacts", color: "rgb(255,230,210)" },
   ];
@@ -276,7 +335,7 @@ function emitDecisionStep(
   const branches = Object.entries(step.branches);
   if (branches.length === 0) return;
 
-  const agentAlias = lastFromAgent
+  const agentAl = lastFromAgent
     ? participantAlias(participants, lastFromAgent)
     : null;
 
@@ -287,13 +346,95 @@ function emitDecisionStep(
     } else {
       lines.push(`${indent}else ${key}`);
     }
-    if (agentAlias) {
-      lines.push(`${indent}    Note over ${agentAlias}: ${values.join(", ")}`);
-    } else {
-      lines.push(`${indent}    Note right of ${participantAlias(participants, [...new Set<string>()].join(""))}: ${values.join(", ")}`);
+    if (agentAl) {
+      lines.push(`${indent}    Note over ${agentAl}: ${values.join(", ")}`);
     }
   }
   lines.push(`${indent}end`);
+}
+
+function emitRetryBlock(
+  step: Extract<WorkflowStep, { type: "handoff" }>,
+  participants: ParticipantInfo[],
+  dsl: Dsl,
+  relatedTasks: Array<Task & { id: string }>,
+  lines: string[],
+  indent: string,
+): void {
+  const retry = step.retry;
+  if (!retry) return;
+
+  const taskMap = new Map<string, Task & { id: string }>();
+  for (const t of relatedTasks) taskMap.set(t.id, t);
+
+  lines.push(`${indent}opt ${retry.condition}`);
+  const innerIndent = indent + "    ";
+
+  const fixTask = taskMap.get(retry.fix_task);
+  if (fixTask) {
+    const fromAlias = step.from_agent
+      ? participantAlias(participants, step.from_agent)
+      : null;
+    const targetAlias = participantAlias(participants, fixTask.target_agent);
+    if (fromAlias) {
+      lines.push(`${innerIndent}${fromAlias}->>${targetAlias}: fix ${retry.fix_task}`);
+    }
+    for (const es of fixTask.execution_steps ?? []) {
+      emitExecutionStep(es, targetAlias, participants, lines, innerIndent);
+    }
+    if (fromAlias) {
+      lines.push(`${innerIndent}${targetAlias}-->>${fromAlias}: ${fixTask.result_handoff}`);
+    }
+  }
+
+  if (retry.revalidate_task) {
+    const revalTask = taskMap.get(retry.revalidate_task);
+    if (revalTask) {
+      const fromAlias = step.from_agent
+        ? participantAlias(participants, step.from_agent)
+        : null;
+      const revalAlias = participantAlias(participants, revalTask.target_agent);
+      if (fromAlias) {
+        lines.push(`${innerIndent}${fromAlias}->>${revalAlias}: revalidate ${retry.revalidate_task}`);
+        lines.push(`${innerIndent}${revalAlias}-->>${fromAlias}: ${revalTask.result_handoff}`);
+      }
+    }
+  }
+
+  lines.push(`${indent}end`);
+}
+
+interface GroupedSteps {
+  group: string | null;
+  steps: Array<{ step: WorkflowStep; index: number }>;
+}
+
+function groupSteps(steps: WorkflowStep[]): GroupedSteps[] {
+  const result: GroupedSteps[] = [];
+  let currentGroup: GroupedSteps | null = null;
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const group = ("group" in step ? step.group : undefined) as string | undefined;
+
+    if (group) {
+      if (currentGroup && currentGroup.group === group) {
+        currentGroup.steps.push({ step, index: i });
+      } else {
+        if (currentGroup) result.push(currentGroup);
+        currentGroup = { group, steps: [{ step, index: i }] };
+      }
+    } else {
+      if (currentGroup) {
+        result.push(currentGroup);
+        currentGroup = null;
+      }
+      result.push({ group: null, steps: [{ step, index: i }] });
+    }
+  }
+  if (currentGroup) result.push(currentGroup);
+
+  return result;
 }
 
 export function generateSequenceDiagram(
@@ -302,12 +443,13 @@ export function generateSequenceDiagram(
   dsl: Dsl,
 ): string {
   const ids = collectReferencedIds(workflow, dsl, relatedTasks);
-  const participants = buildParticipants(ids, dsl);
+  const externals = workflow.external_participants ?? [];
+  const participants = buildParticipants(ids, externals, dsl);
   const lines: string[] = [];
   const indent = "    ";
 
   lines.push("sequenceDiagram");
-  emitParticipants(participants, lines, indent);
+  emitParticipants(participants, externals, lines, indent);
 
   lines.push("");
   lines.push(`${indent}rect ${hashToColor(workflow.id, 0.15, 0.95)}`);
@@ -321,16 +463,34 @@ export function generateSequenceDiagram(
     lines.push(`${indent}Note over ${firstP.alias},${lastP.alias}: ${noteLabel}`);
   }
 
+  if (workflow.trigger && externals.some((ep) => ep.kind === "actor")) {
+    const actor = externals.find((ep) => ep.kind === "actor")!;
+    const actorAlias = participantAlias(participants, actor.id);
+    const firstAgent = participants.find((p) => p.group === "agents" || p.group === "audit");
+    if (firstAgent) {
+      lines.push(`${indent}${actorAlias}->>${firstAgent.alias}: ${workflow.trigger}`);
+    }
+  }
+
   let lastFromAgent: string | undefined;
-  for (const step of workflow.steps) {
-    lines.push("");
-    if (step.type === "handoff") {
-      if (step.from_agent) lastFromAgent = step.from_agent;
-      emitHandoffStep(step, participants, dsl, relatedTasks, lines, indent);
-    } else if (step.type === "validation") {
-      emitValidationStep(step, participants, dsl, lastFromAgent, lines, indent);
-    } else if (step.type === "decision") {
-      emitDecisionStep(step, participants, lastFromAgent, lines, indent);
+  const grouped = groupSteps(workflow.steps);
+
+  for (const g of grouped) {
+    if (g.group && g.steps.length > 1) {
+      lines.push("");
+      lines.push(`${indent}par ${g.group}`);
+      const parIndent = indent + "    ";
+      for (let i = 0; i < g.steps.length; i++) {
+        const { step } = g.steps[i];
+        if (i > 0) lines.push(`${indent}and`);
+        emitStep(step, participants, dsl, relatedTasks, lines, parIndent, lastFromAgent, (a) => { lastFromAgent = a; });
+      }
+      lines.push(`${indent}end`);
+    } else {
+      for (const { step } of g.steps) {
+        lines.push("");
+        emitStep(step, participants, dsl, relatedTasks, lines, indent, lastFromAgent, (a) => { lastFromAgent = a; });
+      }
     }
   }
 
@@ -338,4 +498,27 @@ export function generateSequenceDiagram(
   lines.push(`${indent}end`);
 
   return lines.join("\n");
+}
+
+function emitStep(
+  step: WorkflowStep,
+  participants: ParticipantInfo[],
+  dsl: Dsl,
+  relatedTasks: Array<Task & { id: string }>,
+  lines: string[],
+  indent: string,
+  lastFromAgent: string | undefined,
+  setLastFromAgent: (a: string) => void,
+): void {
+  if (step.type === "handoff") {
+    if (step.from_agent) setLastFromAgent(step.from_agent);
+    emitHandoffStep(step, participants, dsl, relatedTasks, lines, indent);
+    if (step.retry) {
+      emitRetryBlock(step, participants, dsl, relatedTasks, lines, indent);
+    }
+  } else if (step.type === "validation") {
+    emitValidationStep(step, participants, dsl, lastFromAgent, lines, indent);
+  } else if (step.type === "decision") {
+    emitDecisionStep(step, participants, lastFromAgent, lines, indent);
+  }
 }

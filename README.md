@@ -204,14 +204,29 @@ An **Artifact** defines the objects that move through the workflow:
 * required validations
 * visibility
 
+### Tool
+
+A **Tool** defines an invokable CLI/MCP tool:
+
+* kind (cli, mcp, etc.)
+* input/output artifacts
+* invokable_by (which agents can use it)
+* `commands` — structured list of sub-commands with `category`, `reads`, `writes`, and `purpose`
+
 ### Workflow
 
 A **Workflow** defines a phase-level execution sequence:
 
-* description
-* entry conditions
-* trigger
+* `description` — human-readable summary
+* `entry_conditions`
+* `trigger`
+* `external_participants` — actors/participants outside the agent system (e.g., User, external advisory)
 * ordered steps (handoff, validation, decision)
+
+Workflow steps support additional properties:
+
+* `group` — consecutive steps with the same group are rendered as `par` (parallel) blocks in sequence diagrams
+* `retry` (handoff steps only) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
 
 ### Handoff
 
@@ -761,7 +776,8 @@ Templates can use these built-in helpers:
 | `or` | `{{#if (or a b)}}` | Boolean OR (variadic) |
 | `and` | `{{#if (and a b)}}` | Boolean AND (variadic) |
 | `gt` / `gte` / `lt` | `{{#if (gt a b)}}` | Numeric comparisons |
-| `sequenceDiagram` | `{{{sequenceDiagram}}}` | Generate Mermaid sequence diagram from workflow context (requires `workflow` context) |
+| `sequenceDiagram` | `{{{sequenceDiagram}}}` or `{{{sequenceDiagram @key ../dsl}}}` | Generate Mermaid sequence diagram. Supports `external_participants`, `group` (par blocks), `retry` (opt blocks), and read-only agent separation into Audit box |
+| `overviewFlowchart` | `{{{overviewFlowchart dsl}}}` | Generate Mermaid graph showing phases → agents/tools/artifacts relationships (system context) |
 
 ---
 
@@ -800,6 +816,8 @@ Checks:
 * merge integrity
 * read-only write violations
 * prerequisite readability
+* artifact ownership — `produces_artifact`/`reads_artifact` in execution steps vs. artifact producers/editors/consumers
+* tool commands — `commands[].reads`/`commands[].writes` reference valid artifacts and align with `output_artifacts`
 * naming/style issues through Spectral rules
 
 ---

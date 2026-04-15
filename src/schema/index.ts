@@ -44,11 +44,13 @@ export {
   type ExecutionStep,
   type Task,
 } from "./task.js";
-export { ToolSchema, type Tool } from "./tool.js";
+export { CommandSchema, ToolSchema, type Command, type Tool } from "./tool.js";
 export { ValidationSchema, type Validation } from "./validation.js";
 export {
   WorkflowSchema,
   WorkflowStepSchema,
+  type ExternalParticipant,
+  type Retry,
   type Workflow,
   type WorkflowStep,
 } from "./workflow.js";

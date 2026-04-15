@@ -5,3 +5,5 @@ export { validationCoverageRule } from "./rules/validation-coverage.js";
 export { toolExecutionRule } from "./rules/tool-execution.js";
 export { taskAgentBindingRule } from "./rules/task-agent-binding.js";
 export { mergeIntegrityRule } from "./rules/merge-integrity.js";
+export { artifactOwnershipRule } from "./rules/artifact-ownership.js";
+export { toolCommandsRule } from "./rules/tool-commands.js";

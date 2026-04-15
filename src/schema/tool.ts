@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const CommandSchema = z.object({
+  command: z.string(),
+  category: z.string(),
+  reads: z.array(z.string()).default([]),
+  writes: z.array(z.string()).default([]),
+  purpose: z.string().optional(),
+});
+export type Command = z.infer<typeof CommandSchema>;
+
 export const ToolSchema = z
   .object({
     kind: z.string(),
@@ -8,6 +17,7 @@ export const ToolSchema = z
     output_artifacts: z.array(z.string()).default([]),
     invokable_by: z.array(z.string()),
     side_effects: z.array(z.string()).default([]),
+    commands: z.array(CommandSchema).default([]),
   })
   .passthrough();
 export type Tool = z.infer<typeof ToolSchema>;
