@@ -84,6 +84,7 @@ tasks:
     execution_steps:
       - id: read-specs
         action: Read spec-md
+        reads_artifact: spec-md
         required: true
       - id: implement
         action: Change codebase

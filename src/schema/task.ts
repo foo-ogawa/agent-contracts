@@ -10,6 +10,7 @@ export const ExecutionStepSchema = z
     abort_on_failure: z.boolean().optional(),
     uses_tool: z.string().optional(),
     produces_artifact: z.string().optional(),
+    reads_artifact: z.string().optional(),
     depends_on: z.array(z.string()).optional(),
     skip_condition: z.string().optional(),
     wait_for_approval: z.boolean().optional(),

@@ -204,6 +204,15 @@ An **Artifact** defines the objects that move through the workflow:
 * required validations
 * visibility
 
+### Workflow
+
+A **Workflow** defines a phase-level execution sequence:
+
+* description
+* entry conditions
+* trigger
+* ordered steps (handoff, validation, decision)
+
 ### Handoff
 
 A **Handoff** is a runtime delegation instance.
@@ -458,12 +467,13 @@ tasks:
     execution_steps:
       - id: read-specs
         action: "Read spec-md and design-docs"
-        description: "Read all relevant specification and design documents"
+        reads_artifact: spec-md
       - id: implement
         action: "Implement changes in codebase"
+        produces_artifact: codebase
+        depends_on: [read-specs]
       - id: run-db-lint
         action: "Run db-lint"
-        description: "Run database schema linter to check migrations"
         uses_tool: db-lint
         x-timeout: 120
     completion_criteria:
@@ -489,6 +499,33 @@ artifacts:
     states: [draft, reviewed, approved]
     required_validations: [spec-semantic-review]
     visibility: internal
+````
+
+---
+
+## Example: Workflow definition
+
+````yaml
+workflow:
+  specify:
+    description: "Externalize requirements — create spec.md from user stories"
+    entry_conditions:
+      - User story or feature request received
+    trigger: "User invokes /speckit.specify or asks to create a feature spec."
+    steps:
+      - type: handoff
+        handoff_kind: delegation
+        task: specify-feature
+        from_agent: main-architect
+      - type: validation
+        validation_id: spec-semantic-review
+      - type: decision
+        agent: main-architect
+        options:
+          - label: approve
+            next_workflow: plan
+          - label: revise
+            retry_from_step: 0
 ````
 
 ---
@@ -686,8 +723,8 @@ Each `context` type provides a different rendering scope:
 
 * `relatedTasks` — tasks where `task.workflow` matches this phase
 * `relatedAgents` — agents from task `target_agent`, `allowed_from_agents`, step `from_agent`, and validation executors
-* `relatedTools` — tools from `can_execute_tools` of all related agents
-* `relatedArtifacts` — artifacts from `can_read_artifacts`, `can_write_artifacts`, and `input_artifacts`
+* `relatedTools` — tools from `can_execute_tools` of all related agents, plus `uses_tool` in execution steps
+* `relatedArtifacts` — artifacts from `can_read_artifacts`, `can_write_artifacts`, `input_artifacts`, plus `produces_artifact` and `reads_artifact` in execution steps
 * `relatedValidations` — validations referenced in workflow steps
 
 **`artifact` context** provides ownership and cross-reference data:
@@ -724,6 +761,7 @@ Templates can use these built-in helpers:
 | `or` | `{{#if (or a b)}}` | Boolean OR (variadic) |
 | `and` | `{{#if (and a b)}}` | Boolean AND (variadic) |
 | `gt` / `gte` / `lt` | `{{#if (gt a b)}}` | Numeric comparisons |
+| `sequenceDiagram` | `{{{sequenceDiagram}}}` | Generate Mermaid sequence diagram from workflow context (requires `workflow` context) |
 
 ---
 

@@ -319,6 +319,11 @@ export function buildWorkflowContext(
       }
     }
   }
+  for (const task of relatedTasks) {
+    for (const step of task.execution_steps ?? []) {
+      if (step.uses_tool) toolIds.add(step.uses_tool);
+    }
+  }
   const relatedTools: Dsl["tools"] = {};
   for (const id of toolIds) {
     if (dsl.tools[id]) relatedTools[id] = dsl.tools[id];
@@ -327,6 +332,10 @@ export function buildWorkflowContext(
   const artifactIds = new Set<string>();
   for (const task of relatedTasks) {
     for (const artId of task.input_artifacts) artifactIds.add(artId);
+    for (const step of task.execution_steps ?? []) {
+      if (step.produces_artifact) artifactIds.add(step.produces_artifact);
+      if (step.reads_artifact) artifactIds.add(step.reads_artifact);
+    }
   }
   for (const id of agentIds) {
     const agent = dsl.agents[id];

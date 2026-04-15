@@ -104,6 +104,16 @@ export const taskAgentBindingRule: LintRule = {
             });
           }
         }
+        if (step.reads_artifact) {
+          if (!targetAgent.can_read_artifacts.includes(step.reads_artifact)) {
+            diagnostics.push({
+              ruleId: "task-agent-binding",
+              severity: "error",
+              path: `tasks.${taskId}.execution_steps`,
+              message: `Task "${taskId}" step reads_artifact "${step.reads_artifact}" not in target agent "${task.target_agent}" can_read_artifacts`,
+            });
+          }
+        }
       }
     }
 

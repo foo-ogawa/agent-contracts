@@ -3,8 +3,9 @@ import { resolve, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { DslSchema, type Dsl } from "../../src/schema/index.js";
-import { buildGlobalContext, buildPerAgentContext } from "../../src/renderer/context.js";
+import { buildGlobalContext, buildPerAgentContext, buildWorkflowContext } from "../../src/renderer/context.js";
 import { renderFromConfig, checkDriftFromConfig } from "../../src/renderer/renderer.js";
+import { generateSequenceDiagram } from "../../src/renderer/sequence-diagram.js";
 import type { ResolvedRenderTarget } from "../../src/config/types.js";
 
 const fixturesDir = resolve(import.meta.dirname, "../fixtures");
@@ -271,5 +272,126 @@ describe("checkDriftFromConfig", () => {
     const result = await checkDriftFromConfig(fullDsl, targets);
     expect(result.hasDrift).toBe(true);
     expect(result.diffs.length).toBeGreaterThan(0);
+  });
+});
+
+describe("generateSequenceDiagram", () => {
+  it("generates valid mermaid structure from fixture DSL", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("sequenceDiagram");
+    expect(output).toContain("participant");
+    expect(output).toContain("rect ");
+    expect(output).toContain("Note over ");
+  });
+
+  it("emits [R] for reads_artifact and [W] for produces_artifact", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("[R] Read spec-md");
+    expect(output).toContain("[W] Change codebase");
+  });
+
+  it("emits tool invocation arrows from uses_tool", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("eslint_runner");
+    expect(output).toContain("Change codebase");
+  });
+
+  it("emits delegation and result_handoff arrows", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("delegate implement-feature");
+    expect(output).toContain("dependency-evidence");
+  });
+
+  it("emits validation step with executor and target_artifact", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("code-lint");
+    expect(output).toContain("[R] codebase");
+  });
+
+  it("emits alt/else for decision step", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("alt PASS");
+    expect(output).toContain("else BLOCK");
+    expect(output).toMatch(/end/);
+  });
+
+  it("groups participants into Agents, Toolchain, Artifacts boxes", () => {
+    const ctx = buildWorkflowContext(fullDsl, "implement");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, fullDsl);
+
+    expect(output).toContain("box rgb(200,220,255) Agents");
+    expect(output).toContain("box rgb(220,255,220) Toolchain");
+    expect(output).toContain("box rgb(255,230,210) Artifacts");
+  });
+
+  it("includes description in workflow Note when present", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["build"] },
+      agents: {
+        dev: { role_name: "Developer", purpose: "P", can_write_artifacts: ["code"], can_return_handoffs: ["result"] },
+      },
+      tasks: {
+        "write-code": {
+          description: "Write code",
+          target_agent: "dev",
+          allowed_from_agents: ["dev"],
+          workflow: "build",
+          input_artifacts: [],
+          invocation_handoff: "start",
+          result_handoff: "result",
+          execution_steps: [
+            { id: "w", action: "Write files", produces_artifact: "code" },
+          ],
+        },
+      },
+      artifacts: {
+        code: { type: "code", owner: "dev", producers: ["dev"], editors: ["dev"], consumers: [], states: ["done"] },
+      },
+      workflow: {
+        build: {
+          steps: [
+            { type: "handoff", handoff_kind: "delegation", task: "write-code", from_agent: "dev" },
+          ],
+          description: "Build phase summary",
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "build");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("build — Build phase summary");
+  });
+
+  it("handles handoff step without task (task-less handoff)", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["flow"] },
+      agents: {
+        mgr: { role_name: "Manager", purpose: "P" },
+      },
+      workflow: {
+        flow: {
+          steps: [
+            { type: "handoff", handoff_kind: "notify", from_agent: "mgr" },
+          ],
+        },
+      },
+    });
+    const ctx = buildWorkflowContext(dsl, "flow");
+    const output = generateSequenceDiagram(ctx.workflow, ctx.relatedTasks, dsl);
+    expect(output).toContain("sequenceDiagram");
+    expect(output).toContain("notify");
   });
 });

@@ -14,6 +14,7 @@ import {
   buildWorkflowContext,
   buildPolicyContext,
 } from "./context.js";
+import { generateSequenceDiagram } from "./sequence-diagram.js";
 
 Handlebars.registerHelper("eq", (a: unknown, b: unknown) => a === b);
 
@@ -202,6 +203,17 @@ Handlebars.registerHelper("size", (obj: unknown): number => {
   if (obj && typeof obj === "object") return Object.keys(obj as Record<string, unknown>).length;
   return 0;
 });
+
+Handlebars.registerHelper(
+  "sequenceDiagram",
+  function (this: Record<string, unknown>): string {
+    const workflow = this["workflow"] as Parameters<typeof generateSequenceDiagram>[0];
+    const relatedTasks = this["relatedTasks"] as Parameters<typeof generateSequenceDiagram>[1];
+    const dsl = this["dsl"] as Parameters<typeof generateSequenceDiagram>[2];
+    if (!workflow || !dsl) return "";
+    return generateSequenceDiagram(workflow, relatedTasks ?? [], dsl);
+  },
+);
 
 function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> {
   const sectionMap: Record<string, Record<string, unknown>> = {

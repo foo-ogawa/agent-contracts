@@ -36,6 +36,7 @@ export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
 export const WorkflowSchema = z
   .object({
+    description: z.string().optional(),
     entry_conditions: z.array(z.string()).default([]),
     trigger: z.string().optional(),
     steps: z.array(WorkflowStepSchema),
