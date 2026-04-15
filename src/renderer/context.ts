@@ -10,6 +10,7 @@ import type {
   Policy,
   System,
 } from "../schema/index.js";
+import { resolveAllOf } from "../schema/index.js";
 
 export interface GlobalContext {
   system: Dsl["system"];
@@ -456,14 +457,20 @@ function mergeBehavioralSpec(
   };
 }
 
-function extractPayloadFieldNames(
-  payload: Record<string, unknown>,
+/**
+ * Extract top-level property names from a handoff type schema.
+ * Flattens `allOf` before reading `properties`, so composed schemas
+ * (via `$ref` + `allOf`) are handled correctly.
+ */
+function extractSchemaFieldNames(
+  schema: Record<string, unknown>,
 ): string[] {
-  const props = payload["properties"];
+  const effective = resolveAllOf(schema);
+  const props = effective["properties"];
   if (props && typeof props === "object") {
     return Object.keys(props as Record<string, unknown>);
   }
-  return Object.keys(payload);
+  return Object.keys(schema);
 }
 
 function buildDelegatableTasks(
@@ -483,11 +490,11 @@ function buildDelegatableTasks(
         input_artifacts: t.input_artifacts,
         invocation_handoff: t.invocation_handoff,
         invocation_payload_keys: invocationHandoff
-          ? extractPayloadFieldNames(invocationHandoff.payload)
+          ? extractSchemaFieldNames(invocationHandoff.schema)
           : [],
         result_handoff: t.result_handoff,
         result_payload_keys: resultHandoff
-          ? extractPayloadFieldNames(resultHandoff.payload)
+          ? extractSchemaFieldNames(resultHandoff.schema)
           : [],
       };
     });

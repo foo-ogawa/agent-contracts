@@ -251,6 +251,7 @@ const MERGE_SECTIONS = [
   "handoff_types",
   "workflow",
   "policies",
+  "components",
 ];
 
 export function mergeDsl(

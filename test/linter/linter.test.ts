@@ -114,8 +114,8 @@ describe("validationCoverageRule", () => {
         },
       },
       handoff_types: {
-        h: { version: 1, payload: {} },
-        r: { version: 1, payload: {} },
+        h: { version: 1, schema: {} },
+        r: { version: 1, schema: {} },
       },
     });
     const diags = validationCoverageRule.run(dsl);
@@ -273,8 +273,8 @@ describe("taskAgentBindingRule", () => {
         },
       },
       handoff_types: {
-        inv: { version: 1, payload: {} },
-        res: { version: 1, payload: {} },
+        inv: { version: 1, schema: {} },
+        res: { version: 1, schema: {} },
       },
     });
     const diags = taskAgentBindingRule.run(dsl);
@@ -293,8 +293,8 @@ describe("taskAgentBindingRule", () => {
         },
       },
       handoff_types: {
-        h: { version: 1, payload: {} },
-        r: { version: 1, payload: {} },
+        h: { version: 1, schema: {} },
+        r: { version: 1, schema: {} },
       },
     });
     const diags = taskAgentBindingRule.run(dsl);

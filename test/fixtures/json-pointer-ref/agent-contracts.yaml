@@ -1,0 +1,90 @@
+version: 1
+system:
+  id: json-pointer-test
+  name: JSON Pointer Test
+  default_workflow_order:
+    - implement
+
+components:
+  schemas:
+    handoff-common:
+      type: object
+      required:
+        - from_agent
+        - to_agent
+      properties:
+        from_agent:
+          type: string
+        to_agent:
+          type: string
+        run_id:
+          type: string
+
+agents:
+  architect:
+    role_name: Architect
+    purpose: Drive phases
+    can_invoke_agents: [implementer]
+    can_return_handoffs: [task-delegation]
+  implementer:
+    role_name: Implementer
+    purpose: Implement features
+    can_return_handoffs: [implementation-result]
+
+tasks:
+  implement-feature:
+    description: Implement a feature
+    target_agent: implementer
+    allowed_from_agents: [architect]
+    workflow: implement
+    input_artifacts: []
+    invocation_handoff: task-delegation
+    result_handoff: implementation-result
+
+artifacts: {}
+tools: {}
+validations: {}
+
+handoff_types:
+  task-delegation:
+    version: 1
+    description: Delegate a task
+    schema:
+      allOf:
+        - $ref: "#/components/schemas/handoff-common"
+        - type: object
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              required: [objective]
+              properties:
+                objective:
+                  type: string
+                context:
+                  type: string
+
+  implementation-result:
+    version: 1
+    description: Report implementation result
+    schema:
+      allOf:
+        - $ref: "#/components/schemas/handoff-common"
+        - type: object
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              required: [summary, status]
+              properties:
+                summary:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - complete
+                    - partial
+                    - blocked
+
+workflow: {}
+policies: {}

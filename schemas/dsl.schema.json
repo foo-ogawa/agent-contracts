@@ -299,6 +299,9 @@
                 "produces_artifact": {
                   "type": "string"
                 },
+                "reads_artifact": {
+                  "type": "string"
+                },
                 "depends_on": {
                   "type": "array",
                   "items": {
@@ -394,6 +397,13 @@
               ],
               "additionalProperties": {}
             }
+          },
+          "validations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -403,7 +413,8 @@
           "workflow",
           "input_artifacts",
           "invocation_handoff",
-          "result_handoff"
+          "result_handoff",
+          "validations"
         ],
         "additionalProperties": {}
       }
@@ -514,6 +525,45 @@
             "items": {
               "type": "string"
             }
+          },
+          "commands": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "reads": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "writes": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "purpose": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "command",
+                "category",
+                "reads",
+                "writes"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -521,7 +571,8 @@
           "input_artifacts",
           "output_artifacts",
           "invokable_by",
-          "side_effects"
+          "side_effects",
+          "commands"
         ],
         "additionalProperties": {}
       }
@@ -589,7 +640,7 @@
           "description": {
             "type": "string"
           },
-          "payload": {
+          "schema": {
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -606,7 +657,7 @@
         },
         "required": [
           "version",
-          "payload"
+          "schema"
         ],
         "additionalProperties": {}
       }
@@ -620,6 +671,9 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
+          "description": {
+            "type": "string"
+          },
           "entry_conditions": {
             "default": [],
             "type": "array",
@@ -639,6 +693,75 @@
                   "properties": {
                     "type": {
                       "type": "string",
+                      "const": "delegate"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "task": {
+                      "type": "string"
+                    },
+                    "from_agent": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "string"
+                        },
+                        "fix_task": {
+                          "type": "string"
+                        },
+                        "revalidate_task": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "fix_task"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "task",
+                    "from_agent"
+                  ],
+                  "additionalProperties": {}
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "gate"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "gate_kind": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "gate_kind"
+                  ],
+                  "additionalProperties": {}
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
                       "const": "handoff"
                     },
                     "description": {
@@ -652,6 +775,28 @@
                     },
                     "from_agent": {
                       "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "object",
+                      "properties": {
+                        "condition": {
+                          "type": "string"
+                        },
+                        "fix_task": {
+                          "type": "string"
+                        },
+                        "revalidate_task": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "condition",
+                        "fix_task"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -671,6 +816,9 @@
                       "type": "string"
                     },
                     "validation": {
+                      "type": "string"
+                    },
+                    "group": {
                       "type": "string"
                     }
                   },
@@ -704,6 +852,9 @@
                           "type": "string"
                         }
                       }
+                    },
+                    "group": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -715,11 +866,43 @@
                 }
               ]
             }
+          },
+          "external_participants": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "actor",
+                    "participant"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "label"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
           "entry_conditions",
-          "steps"
+          "steps",
+          "external_participants"
         ],
         "additionalProperties": {}
       }
@@ -763,6 +946,32 @@
         ],
         "additionalProperties": {}
       }
+    },
+    "components": {
+      "default": {
+        "schemas": {}
+      },
+      "type": "object",
+      "properties": {
+        "schemas": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": [
+        "schemas"
+      ],
+      "additionalProperties": {}
     }
   },
   "required": [
@@ -775,7 +984,8 @@
     "validations",
     "handoff_types",
     "workflow",
-    "policies"
+    "policies",
+    "components"
   ],
   "additionalProperties": {}
 }

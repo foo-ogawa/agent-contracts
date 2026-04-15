@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { loadConfig, ConfigLoadError } from "../../config/index.js";
 import { resolve, substituteVars } from "../../resolver/index.js";
-import { validateSchema, checkReferences } from "../../validator/index.js";
+import { validateSchema, checkReferences, validateHandoffSchemas } from "../../validator/index.js";
 import { lint, spectralLint } from "../../linter/index.js";
 import { checkDriftFromConfig } from "../../renderer/index.js";
 import { formatDiagnostics, type OutputFormat } from "../format.js";
@@ -46,8 +46,10 @@ export const checkCommand = new Command("check")
         }
 
         const refDiags = checkReferences(schemaResult.data!);
-        if (refDiags.length > 0) {
-          const output = formatDiagnostics(refDiags, {
+        const handoffDiags = validateHandoffSchemas(schemaResult.data!);
+        const allRefDiags = [...refDiags, ...handoffDiags];
+        if (allRefDiags.length > 0) {
+          const output = formatDiagnostics(allRefDiags, {
             format: opts.format,
             quiet: opts.quiet,
           });

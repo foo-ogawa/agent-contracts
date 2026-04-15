@@ -1,4 +1,5 @@
 import type { Dsl } from "../schema/index.js";
+import { resolveAllOf } from "../schema/index.js";
 
 export interface ReferenceDiagnostic {
   path: string;
@@ -192,9 +193,10 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
   }
 
   for (const [kind, ht] of Object.entries(dsl.handoff_types)) {
-    const payload = ht.payload as Record<string, unknown>;
-    const required = payload.required;
-    const properties = payload.properties;
+    const schema = ht.schema as Record<string, unknown>;
+    const effectiveSchema = resolveAllOf(schema);
+    const required = effectiveSchema.required;
+    const properties = effectiveSchema.properties;
     if (
       Array.isArray(required) &&
       properties !== undefined &&
@@ -207,9 +209,9 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
         const key = required[j];
         if (typeof key === "string" && !(key in propRecord)) {
           diagnostics.push({
-            path: `handoff_types.${kind}.payload.required[${j}]`,
-            message: `Handoff payload required field "${key}" is not a key in payload.properties`,
-            code: "payload-required-not-in-properties",
+            path: `handoff_types.${kind}.schema.required[${j}]`,
+            message: `Handoff schema required field "${key}" is not a key in schema.properties`,
+            code: "schema-required-not-in-properties",
           });
         }
       }
@@ -230,9 +232,9 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
           const enumVal = (propSchema as Record<string, unknown>).enum;
           if (Array.isArray(enumVal) && enumVal.length === 0) {
             diagnostics.push({
-              path: `handoff_types.${kind}.payload.properties.${propKey}`,
-              message: `Handoff payload property "${propKey}" has an empty enum`,
-              code: "payload-empty-enum",
+              path: `handoff_types.${kind}.schema.properties.${propKey}`,
+              message: `Handoff schema property "${propKey}" has an empty enum`,
+              code: "schema-empty-enum",
             });
           }
         }

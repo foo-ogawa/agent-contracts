@@ -223,4 +223,50 @@ describe("loadDsl", () => {
       ).rejects.toThrow("Invalid YAML syntax");
     });
   });
+
+  describe("JSON Pointer $ref resolution", () => {
+    it("resolves #/ references to components.schemas", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "json-pointer-ref/agent-contracts.yaml"),
+      );
+      const handoffTypes = result.data["handoff_types"] as Record<string, Record<string, unknown>>;
+      const delegation = handoffTypes["task-delegation"];
+      const schema = delegation["schema"] as Record<string, unknown>;
+
+      const allOf = schema["allOf"] as Array<Record<string, unknown>>;
+      expect(allOf).toHaveLength(2);
+      expect(allOf[0]["type"]).toBe("object");
+      expect(allOf[0]["required"]).toEqual(["from_agent", "to_agent"]);
+      const commonProps = allOf[0]["properties"] as Record<string, unknown>;
+      expect(commonProps["from_agent"]).toEqual({ type: "string" });
+      expect(commonProps["to_agent"]).toEqual({ type: "string" });
+      expect(commonProps["run_id"]).toEqual({ type: "string" });
+    });
+
+    it("resolves #/ references independently per usage (deep copy)", async () => {
+      const result = await loadDsl(
+        join(fixturesDir, "json-pointer-ref/agent-contracts.yaml"),
+      );
+      const handoffTypes = result.data["handoff_types"] as Record<string, Record<string, unknown>>;
+      const delegationSchema = handoffTypes["task-delegation"]["schema"] as Record<string, unknown>;
+      const resultSchema = handoffTypes["implementation-result"]["schema"] as Record<string, unknown>;
+
+      const delegationAllOf = delegationSchema["allOf"] as Array<Record<string, unknown>>;
+      const resultAllOf = resultSchema["allOf"] as Array<Record<string, unknown>>;
+
+      expect(delegationAllOf[0]).toEqual(resultAllOf[0]);
+      expect(delegationAllOf[0]).not.toBe(resultAllOf[0]);
+    });
+
+    it("errors on non-existent JSON Pointer path", async () => {
+      const { writeFileSync, unlinkSync } = await import("node:fs");
+      const tempPath = join(fixturesDir, "json-pointer-ref/temp-bad-ref.yaml");
+      writeFileSync(tempPath, `version: 1\nsystem:\n  id: t\n  name: T\n  default_workflow_order: []\nhandoff_types:\n  h:\n    version: 1\n    schema:\n      $ref: "#/components/schemas/nonexistent"\n`);
+      try {
+        await expect(loadDsl(tempPath)).rejects.toThrow("not found");
+      } finally {
+        unlinkSync(tempPath);
+      }
+    });
+  });
 });

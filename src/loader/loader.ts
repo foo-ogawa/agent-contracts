@@ -31,6 +31,48 @@ function isRef(value: unknown): value is { $ref: string } {
   );
 }
 
+/** Deep-clone a value to prevent mutation when resolving in-document `$ref`. */
+function deepClone(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  if (Array.isArray(value)) return value.map(deepClone);
+  const result: AnyRecord = {};
+  for (const [k, v] of Object.entries(value as AnyRecord)) {
+    result[k] = deepClone(v);
+  }
+  return result;
+}
+
+/**
+ * Resolve a JSON Pointer (RFC 6901) against the root document.
+ *
+ * Expects `pointer` to start with `#/`. Segment escapes (`~0` → `~`, `~1` → `/`)
+ * are handled per the specification.
+ *
+ * @throws {DslLoadError} if a segment is not found or traverses a non-object.
+ */
+function resolveJsonPointer(root: AnyRecord, pointer: string): unknown {
+  const path = pointer.slice(2);
+  const segments = path.split("/").map((s) =>
+    s.replace(/~1/g, "/").replace(/~0/g, "~"),
+  );
+
+  let current: unknown = root;
+  for (const segment of segments) {
+    if (!isRecord(current)) {
+      throw new DslLoadError(
+        `Cannot resolve JSON Pointer "${pointer}": path segment "${segment}" is not an object`,
+      );
+    }
+    current = (current as AnyRecord)[segment];
+    if (current === undefined) {
+      throw new DslLoadError(
+        `Cannot resolve JSON Pointer "${pointer}": path segment "${segment}" not found`,
+      );
+    }
+  }
+  return current;
+}
+
 function hasRefs(value: AnyRecord): value is AnyRecord & { $refs: string[] } {
   if (!("$refs" in value)) return false;
   const refs = value["$refs"];
@@ -87,6 +129,7 @@ async function loadRefsSource(
   refPath: string,
   baseDir: string,
   resolving: Set<string>,
+  rootDoc: AnyRecord,
 ): Promise<AnyRecord> {
   const target = resolve(baseDir, refPath);
   const s = await fsStat(target).catch(() => null);
@@ -96,7 +139,7 @@ async function loadRefsSource(
       throw new DslLoadError(`Circular $refs detected: ${target}`, target);
     }
     resolving.add(target);
-    const result = await loadDirectoryAsMap(target, resolving);
+    const result = await loadDirectoryAsMap(target, resolving, rootDoc);
     resolving.delete(target);
     return result;
   }
@@ -122,6 +165,7 @@ async function loadRefsSource(
     content,
     dirname(target),
     resolving,
+    rootDoc,
   )) as AnyRecord;
   resolving.delete(target);
   return resolved;
@@ -130,6 +174,7 @@ async function loadRefsSource(
 async function loadDirectoryAsMap(
   dirPath: string,
   resolving: Set<string>,
+  rootDoc: AnyRecord,
 ): Promise<AnyRecord> {
   let entries: string[];
   try {
@@ -169,6 +214,7 @@ async function loadDirectoryAsMap(
       content,
       dirPath,
       resolving,
+      rootDoc,
     )) as AnyRecord;
 
     merged = deepMergeRefs(merged, resolved, filePath);
@@ -181,6 +227,7 @@ async function processRefs(
   obj: AnyRecord,
   baseDir: string,
   resolving: Set<string>,
+  rootDoc: AnyRecord,
 ): Promise<AnyRecord> {
   const refPaths = obj["$refs"] as string[];
   const inline: AnyRecord = {};
@@ -193,7 +240,7 @@ async function processRefs(
   let merged: AnyRecord = {};
 
   for (const refPath of refPaths) {
-    const loaded = await loadRefsSource(refPath, baseDir, resolving);
+    const loaded = await loadRefsSource(refPath, baseDir, resolving, rootDoc);
     merged = deepMergeRefs(merged, loaded, refPath);
   }
 
@@ -206,18 +253,39 @@ async function resolveRefsDeep(
   data: unknown,
   baseDir: string,
   resolving: Set<string>,
+  rootDoc: AnyRecord,
 ): Promise<unknown> {
   if (typeof data !== "object" || data === null) return data;
 
   if (Array.isArray(data)) {
     return Promise.all(
-      data.map((item) => resolveRefsDeep(item, baseDir, resolving)),
+      data.map((item) => resolveRefsDeep(item, baseDir, resolving, rootDoc)),
     );
   }
 
   // $ref: string — replace this object entirely
   if (isRef(data)) {
-    const refTarget = resolve(baseDir, data.$ref);
+    const refValue = data.$ref;
+
+    // JSON Pointer reference (#/...)
+    if (refValue.startsWith("#/")) {
+      if (resolving.has(refValue)) {
+        throw new DslLoadError(`Circular $ref detected: ${refValue}`);
+      }
+      resolving.add(refValue);
+      const target = resolveJsonPointer(rootDoc, refValue);
+      const resolved = await resolveRefsDeep(
+        deepClone(target),
+        baseDir,
+        resolving,
+        rootDoc,
+      );
+      resolving.delete(refValue);
+      return resolved;
+    }
+
+    // File/directory reference
+    const refTarget = resolve(baseDir, refValue);
     const s = await fsStat(refTarget).catch(() => null);
 
     if (s?.isDirectory()) {
@@ -228,7 +296,7 @@ async function resolveRefsDeep(
         );
       }
       resolving.add(refTarget);
-      const result = await loadDirectoryAsMap(refTarget, resolving);
+      const result = await loadDirectoryAsMap(refTarget, resolving, rootDoc);
       resolving.delete(refTarget);
       return result;
     }
@@ -249,6 +317,7 @@ async function resolveRefsDeep(
       content,
       dirname(refTarget),
       resolving,
+      rootDoc,
     );
     resolving.delete(refTarget);
     return resolved;
@@ -258,13 +327,13 @@ async function resolveRefsDeep(
 
   // $refs: string[] — import files and deep-merge into this map
   if (hasRefs(obj)) {
-    obj = await processRefs(obj, baseDir, resolving);
+    obj = await processRefs(obj, baseDir, resolving, rootDoc);
   }
 
   // Recurse into values
   const result: AnyRecord = {};
   for (const [key, value] of Object.entries(obj)) {
-    result[key] = await resolveRefsDeep(value, baseDir, resolving);
+    result[key] = await resolveRefsDeep(value, baseDir, resolving, rootDoc);
   }
   return result;
 }
@@ -305,6 +374,7 @@ export async function loadDsl(entryPath: string): Promise<LoadResult> {
     data,
     baseDir,
     resolving,
+    data,
   )) as Record<string, unknown>;
 
   return { data: resolved, filePath: absPath };

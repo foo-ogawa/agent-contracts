@@ -213,8 +213,8 @@ validations:
 handoff_types:
   task-delegation:
     version: 1
-    description: Delegation payload
-    payload:
+    description: Delegation schema
+    schema:
       type: object
       required: [objective]
       properties:
@@ -224,8 +224,8 @@ handoff_types:
       stable: true
   dependency-evidence:
     version: 1
-    description: Evidence payload
-    payload:
+    description: Evidence schema
+    schema:
       type: object
       required: [changed_artifacts]
       properties:
@@ -235,7 +235,7 @@ handoff_types:
             type: string
   evidence-gate-verdict:
     version: 1
-    payload:
+    schema:
       type: object
       required: [verdict]
       properties:
@@ -243,7 +243,7 @@ handoff_types:
           type: string
   test-evidence:
     version: 1
-    payload:
+    schema:
       type: object
       required: [results]
       properties:

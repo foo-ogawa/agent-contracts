@@ -244,13 +244,13 @@ describe("Spectral lint — agent behavioral integrity", () => {
   });
 });
 
-describe("Spectral lint — handoff payload schema integrity", () => {
+describe("Spectral lint — handoff schema integrity", () => {
   it("detects required field not in properties", async () => {
     const dsl = makeDsl({
       handoff_types: {
         "task-delegation": {
           version: 1,
-          payload: {
+          schema: {
             type: "object",
             required: ["objective", "missing_field"],
             properties: {
@@ -271,7 +271,7 @@ describe("Spectral lint — handoff payload schema integrity", () => {
       handoff_types: {
         verdict: {
           version: 1,
-          payload: {
+          schema: {
             type: "object",
             properties: {
               status: { type: "string", enum: [] },
@@ -291,7 +291,7 @@ describe("Spectral lint — handoff payload schema integrity", () => {
       handoff_types: {
         report: {
           version: 1,
-          payload: {
+          schema: {
             type: "object",
             properties: {
               details: {
@@ -310,6 +310,37 @@ describe("Spectral lint — handoff payload schema integrity", () => {
     const pl = diags.filter((d) => d.ruleId === "handoff-payload-integrity");
     expect(pl.length).toBe(1);
     expect(pl[0].message).toContain("ghost");
+  });
+
+  it("validates allOf schema by merging sub-schemas", async () => {
+    const dsl = makeDsl({
+      handoff_types: {
+        delegation: {
+          version: 1,
+          schema: {
+            allOf: [
+              {
+                type: "object",
+                required: ["from_agent"],
+                properties: {
+                  from_agent: { type: "string" },
+                },
+              },
+              {
+                type: "object",
+                required: ["payload"],
+                properties: {
+                  payload: { type: "object" },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const diags = await spectralLint(dsl);
+    const pl = diags.filter((d) => d.ruleId === "handoff-payload-integrity");
+    expect(pl).toHaveLength(0);
   });
 });
 

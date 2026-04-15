@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { loadConfig, resolveDslPath } from "../../config/index.js";
 import { resolve, substituteVars } from "../../resolver/index.js";
-import { validateSchema, checkReferences } from "../../validator/index.js";
+import { validateSchema, checkReferences, validateHandoffSchemas } from "../../validator/index.js";
 import { formatDiagnostics, type FormatOptions } from "../format.js";
 
 const DIR_DEFAULT = "agent-contracts.yaml";
@@ -29,8 +29,10 @@ export const validateCommand = new Command("validate")
       }
 
       const refDiags = checkReferences(schemaResult.data!);
-      if (refDiags.length > 0) {
-        const output = formatDiagnostics(refDiags, opts);
+      const handoffDiags = validateHandoffSchemas(schemaResult.data!);
+      const allDiags = [...refDiags, ...handoffDiags];
+      if (allDiags.length > 0) {
+        const output = formatDiagnostics(allDiags, opts);
         if (output) process.stderr.write(output + "\n");
         process.exit(1);
       }

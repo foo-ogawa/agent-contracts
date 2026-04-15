@@ -24,6 +24,7 @@ import {
   ValidationSchema,
   WorkflowSchema,
   WorkflowStepSchema,
+  resolveAllOf,
 } from "../../src/schema/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -81,7 +82,7 @@ const minimalValidValidation = {
 
 const minimalValidHandoffType = {
   version: 1,
-  payload: { type: "object" },
+  schema: { type: "object" },
 };
 
 const minimalValidWorkflow = {
@@ -796,7 +797,7 @@ describe("new standard properties", () => {
   it("parses HandoffTypeSchema with optional example", () => {
     const h = HandoffTypeSchema.parse({
       version: 1,
-      payload: { type: "object" },
+      schema: { type: "object" },
       example: { summary: "Fix login bug", status: "complete" },
     });
     expect(h.example).toEqual({ summary: "Fix login bug", status: "complete" });
@@ -841,6 +842,94 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
       "handoff_types",
       "workflow",
       "policies",
+      "components",
     ]);
+  });
+
+  it("parses DSL with components.schemas", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: minimalValidSystem,
+      components: {
+        schemas: {
+          "handoff-common": {
+            type: "object",
+            properties: { from_agent: { type: "string" } },
+          },
+        },
+      },
+    });
+    expect(dsl.components.schemas).toBeDefined();
+    expect(dsl.components.schemas["handoff-common"]).toBeDefined();
+  });
+
+  it("defaults components to empty schemas", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: minimalValidSystem,
+    });
+    expect(dsl.components).toEqual({ schemas: {} });
+  });
+});
+
+describe("resolveAllOf", () => {
+  it("returns schema as-is when no allOf", () => {
+    const schema = {
+      type: "object",
+      required: ["a"],
+      properties: { a: { type: "string" } },
+    };
+    expect(resolveAllOf(schema)).toEqual(schema);
+  });
+
+  it("merges allOf sub-schemas", () => {
+    const schema = {
+      allOf: [
+        {
+          type: "object",
+          required: ["from_agent"],
+          properties: { from_agent: { type: "string" } },
+        },
+        {
+          type: "object",
+          required: ["payload"],
+          properties: {
+            payload: { type: "object", properties: { x: { type: "string" } } },
+          },
+        },
+      ],
+    };
+    const result = resolveAllOf(schema);
+    expect(result["type"]).toBe("object");
+    expect(result["required"]).toEqual(
+      expect.arrayContaining(["from_agent", "payload"]),
+    );
+    const props = result["properties"] as Record<string, unknown>;
+    expect(props["from_agent"]).toEqual({ type: "string" });
+    expect(props["payload"]).toBeDefined();
+  });
+
+  it("deduplicates required fields", () => {
+    const schema = {
+      allOf: [
+        { required: ["a", "b"] },
+        { required: ["b", "c"] },
+      ],
+    };
+    const result = resolveAllOf(schema);
+    expect(result["required"]).toEqual(["a", "b", "c"]);
+  });
+
+  it("merges inline properties alongside allOf", () => {
+    const schema = {
+      allOf: [
+        { properties: { a: { type: "string" } } },
+      ],
+      properties: { b: { type: "number" } },
+    };
+    const result = resolveAllOf(schema);
+    const props = result["properties"] as Record<string, unknown>;
+    expect(props["a"]).toEqual({ type: "string" });
+    expect(props["b"]).toEqual({ type: "number" });
   });
 });

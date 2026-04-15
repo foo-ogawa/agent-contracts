@@ -20,7 +20,7 @@
     inc                  - {{inc @index}} — 1-based index (0 → 1, 1 → 2, ...)
     eq                   - {{#if (eq a b)}} — strict equality
     yamlBlock            - {{{yamlBlock obj}}} — render object as YAML text
-    lookupPayloadFields  - {{#each (lookupPayloadFields payload)}} — extract field info
+    lookupPayloadFields  - {{#each (lookupPayloadFields schema)}} — extract field info
     join                 - {{join arr ", "}} — join array elements with separator
     contains             - {{#if (contains arr "x")}} — true when array includes value
     groupBy              - {{#with (groupBy arr "key")}} — group array by field value

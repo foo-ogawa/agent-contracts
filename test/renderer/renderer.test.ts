@@ -80,12 +80,12 @@ describe("buildPerAgentContext", () => {
       handoff_types: {
         "ht-with-ex": {
           version: 1,
-          payload: { type: "object", properties: { x: { type: "string" } } },
+          schema: { type: "object", properties: { x: { type: "string" } } },
           example: { x: "hello" },
         },
         "ht-without-ex": {
           version: 1,
-          payload: { type: "object", properties: { y: { type: "number" } } },
+          schema: { type: "object", properties: { y: { type: "number" } } },
         },
       },
     });
@@ -93,6 +93,67 @@ describe("buildPerAgentContext", () => {
     const ctx = buildPerAgentContext(dsl, agent);
     expect(ctx.relatedHandoffTypes["ht-with-ex"].example).toEqual({ x: "hello" });
     expect(ctx.relatedHandoffTypes["ht-without-ex"].example).toBeUndefined();
+  });
+
+  it("extractSchemaFieldNames handles allOf schemas", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      agents: {
+        a1: {
+          role_name: "R",
+          purpose: "P",
+          can_invoke_agents: ["a2"],
+          can_return_handoffs: ["h"],
+        },
+        a2: {
+          role_name: "R2",
+          purpose: "P2",
+          can_return_handoffs: ["h"],
+        },
+      },
+      tasks: {
+        t1: {
+          description: "D",
+          target_agent: "a2",
+          allowed_from_agents: ["a1"],
+          workflow: "impl",
+          input_artifacts: [],
+          invocation_handoff: "h",
+          result_handoff: "h",
+        },
+      },
+      handoff_types: {
+        h: {
+          version: 1,
+          schema: {
+            allOf: [
+              {
+                type: "object",
+                properties: {
+                  from_agent: { type: "string" },
+                  to_agent: { type: "string" },
+                },
+              },
+              {
+                type: "object",
+                properties: {
+                  payload: {
+                    type: "object",
+                    properties: { objective: { type: "string" } },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const agent = { ...dsl.agents["a1"], id: "a1" };
+    const ctx = buildPerAgentContext(dsl, agent);
+    expect(ctx.delegatableTasks[0].invocation_payload_keys).toEqual(
+      expect.arrayContaining(["from_agent", "to_agent", "payload"]),
+    );
   });
 
   it("rules merge: task rule with same id overrides agent rule", () => {
@@ -551,7 +612,7 @@ describe("generateSequenceDiagram", () => {
       handoff_types: {
         "evidence-gate": {
           version: 1,
-          payload: { type: "object", properties: { verdict: { type: "string" } } },
+          schema: { type: "object", properties: { verdict: { type: "string" } } },
         },
       },
       workflow: {

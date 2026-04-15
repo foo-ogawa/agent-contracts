@@ -9,6 +9,19 @@ import { ToolSchema } from "./tool.js";
 import { ValidationSchema } from "./validation.js";
 import { WorkflowSchema } from "./workflow.js";
 
+/**
+ * Reusable schema components, following the OpenAPI `components` pattern.
+ *
+ * `schemas` is a map of named JSON Schema fragments that can be referenced
+ * from anywhere in the document via `$ref: "#/components/schemas/<name>"`.
+ */
+export const ComponentsSchema = z
+  .object({
+    schemas: z.record(z.string(), z.record(z.string(), z.any())).default({}),
+  })
+  .passthrough();
+export type Components = z.infer<typeof ComponentsSchema>;
+
 export const DslSchema = z
   .object({
     version: z.literal(1),
@@ -22,6 +35,7 @@ export const DslSchema = z
     handoff_types: z.record(z.string(), HandoffTypeSchema).default({}),
     workflow: z.record(z.string(), WorkflowSchema).default({}),
     policies: z.record(z.string(), PolicySchema).default({}),
+    components: ComponentsSchema.default({ schemas: {} }),
   })
   .passthrough();
 export type Dsl = z.infer<typeof DslSchema>;

@@ -228,10 +228,22 @@ Workflow steps support additional properties:
 * `group` — consecutive steps with the same group are rendered as `par` (parallel) blocks in sequence diagrams
 * `retry` (handoff steps only) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
 
-### Handoff
+### Handoff Type
 
-A **Handoff** is a runtime delegation instance.
-The YAML defines the allowed handoff types and constraints; concrete handoffs are created at runtime.
+A **Handoff Type** defines the schema for inter-agent messages:
+
+* `schema` — a JSON Schema object describing the full message structure
+* `description`
+* `example`
+* `version`
+
+Schemas can use `allOf` with `$ref: "#/components/schemas/..."` to compose shared fields (e.g., common envelope) with type-specific properties.
+
+### Components
+
+**Components** provide reusable definitions, following the OpenAPI pattern:
+
+* `components.schemas` — named JSON Schema fragments that can be referenced from anywhere via `$ref: "#/components/schemas/<name>"`
 
 ---
 
@@ -265,12 +277,13 @@ Design regressions become testable.
 * **Static schema validation**
 * **Reference integrity checks**
 * **Semantic linting**
-* **Structured handoff definitions**
+* **Structured handoff definitions** with formal JSON Schema and `allOf` composition
+* **Reusable schema components** via `components.schemas` and JSON Pointer `$ref`
 * **Artifact ownership and lifecycle modeling**
 * **Config-driven prompt rendering**
 * **Variable substitution** via `${vars.xxx}` in DSL values
 * **Inheritance with merge operators via `extends`**
-* **Flexible file splitting** via `$ref` (replacement) and `$refs` (import + deep-merge)
+* **Flexible file splitting** via `$ref` (replacement), `$refs` (import + deep-merge), and JSON Pointer `$ref` (in-document)
 * **JSON Schema for editor support and external tooling**
 * **CI-friendly workflow checks**
 
@@ -304,6 +317,8 @@ validations: {}
 handoff_types: {}
 workflow: {}
 policies: {}
+components:
+  schemas: {}
 ````
 
 This makes definitions easy to merge, extend, and reference by stable identifiers.
@@ -421,7 +436,43 @@ Overlapping map keys are deep-merged recursively. Conflicting leaf values (scala
 | Directive | Type   | Behavior                                                 |
 | --------- | ------ | -------------------------------------------------------- |
 | `$ref`    | string | Replace the object at that position with file contents   |
+| `$ref` (`#/...`) | string | Replace with the value at the given JSON Pointer path within the document |
 | `$refs`   | array  | Import files and deep-merge into the containing map      |
+
+### JSON Pointer `$ref`
+
+`$ref` also supports **in-document references** using JSON Pointer syntax (RFC 6901).
+When the value starts with `#/`, it resolves against the root document instead of the file system.
+
+````yaml
+components:
+  schemas:
+    handoff-common:
+      type: object
+      required: [from_agent, to_agent]
+      properties:
+        from_agent: { type: string }
+        to_agent: { type: string }
+
+handoff_types:
+  task-delegation:
+    version: 1
+    schema:
+      allOf:
+        - $ref: "#/components/schemas/handoff-common"
+        - type: object
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              required: [objective]
+              properties:
+                objective: { type: string }
+````
+
+This is particularly useful for sharing common schema fragments across multiple `handoff_types` entries via `components.schemas`.
+
+JSON Pointer references are resolved in the same processing phase as file `$ref` — before Zod validation. They can be used anywhere in the document, not just within `handoff_types`.
 
 ---
 
@@ -542,6 +593,80 @@ workflow:
           - label: revise
             retry_from_step: 0
 ````
+
+---
+
+## Example: Handoff type definition
+
+Handoff types define the schema for inter-agent messages using JSON Schema.
+
+````yaml
+handoff_types:
+  task-delegation:
+    version: 1
+    description: "Delegate a task to a sub-agent"
+    schema:
+      type: object
+      required: [task, objective]
+      properties:
+        task: { type: string }
+        objective: { type: string }
+        constraints:
+          type: array
+          items: { type: string }
+````
+
+### Using `components.schemas` with `allOf`
+
+Common fields (e.g., `from_agent`, `to_agent`, `run_id`) can be shared across handoff types by placing them in `components.schemas` and composing via `allOf`:
+
+````yaml
+components:
+  schemas:
+    handoff-common:
+      type: object
+      required: [from_agent, to_agent]
+      properties:
+        from_agent: { type: string }
+        to_agent: { type: string }
+        run_id: { type: string }
+
+handoff_types:
+  task-delegation:
+    version: 1
+    description: "Delegate a task"
+    schema:
+      allOf:
+        - $ref: "#/components/schemas/handoff-common"
+        - type: object
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              required: [objective]
+              properties:
+                objective: { type: string }
+
+  implementation-result:
+    version: 1
+    description: "Return implementation results"
+    schema:
+      allOf:
+        - $ref: "#/components/schemas/handoff-common"
+        - type: object
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              required: [result]
+              properties:
+                result: { type: string }
+                evidence:
+                  type: array
+                  items: { type: string }
+````
+
+The `$ref: "#/..."` references are resolved during loading, before validation. The resulting merged schema is then meta-validated as valid JSON Schema.
 
 ---
 
@@ -764,7 +889,7 @@ Templates can use these built-in helpers:
 | `notEmpty` | `{{#if (notEmpty obj)}}` | True when object has at least one key |
 | `inc` | `{{inc @index}}` | Increment number by 1 (for 1-based indexing) |
 | `yamlBlock` | `{{{yamlBlock obj}}}` | Render value as YAML-formatted text |
-| `lookupPayloadFields` | `{{#each (lookupPayloadFields payload)}}` | Extract payload field info (name, type, required, enum) |
+| `lookupPayloadFields` | `{{#each (lookupPayloadFields schema)}}` | Extract schema field info (name, type, required, enum); resolves `allOf` internally |
 | `join` | `{{join arr ", "}}` | Join array elements with separator |
 | `contains` | `{{#if (contains arr "x")}}` | True when array includes value |
 | `groupBy` | `{{#with (groupBy arr "key")}}` | Group array elements by field value |
@@ -792,7 +917,8 @@ Checks:
 * required fields
 * types
 * enums
-* handoff payload shape
+* handoff schema shape (meta-validated as valid JSON Schema via ajv)
+* `allOf` composition in handoff schemas
 * invalid custom properties without `x-` prefix (checked at all nesting levels)
 
 Custom properties with `x-` prefix are allowed on any object in the DSL — top-level entities (agents, tasks, artifacts, …), nested objects (rules, execution steps, workflow steps, …), and the root DSL itself.
@@ -803,7 +929,7 @@ Checks:
 
 * cross-entity references
 * owner / producer / editor / consumer validity
-* handoff and payload consistency
+* handoff schema consistency (`required` vs. `properties` alignment)
 * permission alignment between agents and artifacts
 
 ### Semantic lint
@@ -839,16 +965,16 @@ That separation keeps runtime concerns and architecture concerns from being mixe
 
 ## Tech stack
 
-| Category     | Choice                             |
-| ------------ | ---------------------------------- |
-| Language     | TypeScript (ESM, strict mode)      |
-| Schema       | Zod                                |
-| YAML parsing | yaml                               |
-| Lint         | TypeScript custom rules + Spectral |
-| Templates    | Handlebars                         |
-| CLI          | commander                          |
-| Testing      | Vitest                             |
-| Build        | tsup                               |
+| Category       | Choice                             |
+| -------------- | ---------------------------------- |
+| Language       | TypeScript (ESM, strict mode)      |
+| Schema         | Zod + ajv (JSON Schema meta-validation) |
+| YAML parsing   | yaml                               |
+| Lint           | TypeScript custom rules + Spectral |
+| Templates      | Handlebars                         |
+| CLI            | commander                          |
+| Testing        | Vitest                             |
+| Build          | tsup                               |
 
 ---
 

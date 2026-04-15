@@ -218,7 +218,7 @@ handoff_types:
   task-delegation:
     version: 1
     description: Delegate a task to another agent
-    payload:
+    schema:
       type: object
       required:
         - objective
@@ -233,7 +233,7 @@ handoff_types:
   implementation-result:
     version: 1
     description: Report the result of an implementation task
-    payload:
+    schema:
       type: object
       required:
         - summary
@@ -253,7 +253,7 @@ handoff_types:
   test-result:
     version: 1
     description: Report test execution results
-    payload:
+    schema:
       type: object
       required:
         - summary

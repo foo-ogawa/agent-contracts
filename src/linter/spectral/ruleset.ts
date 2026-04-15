@@ -302,14 +302,14 @@ const ruleset: RulesetDefinition = {
       },
     },
 
-    // ========== 15.2.10 Handoff payload schema integrity ==========
+    // ========== 15.2.10 Handoff schema integrity ==========
 
     "handoff-payload-integrity": {
       description:
-        "Handoff payload required/properties consistency, enum non-empty, nested validation",
+        "Handoff schema required/properties consistency, enum non-empty, nested validation",
       message: "{{error}}",
       severity: "error",
-      given: "$.handoff_types.*.payload",
+      given: "$.handoff_types.*.schema",
       then: {
         function: payloadSchemaIntegrity,
       },

@@ -50,9 +50,9 @@ validations: {}
 handoff_types:
   task-delegation:
     version: 1
-    payload: {}
+    schema: {}
   dependency-evidence:
     version: 1
-    payload: {}
+    schema: {}
 workflow: {}
 policies: {}

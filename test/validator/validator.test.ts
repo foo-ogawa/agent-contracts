@@ -4,6 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { describe, it, expect } from "vitest";
 import { validateSchema } from "../../src/validator/schema-validator.js";
 import { checkReferences } from "../../src/validator/reference-resolver.js";
+import { validateHandoffSchemas } from "../../src/validator/handoff-schema-validator.js";
 import { DslSchema } from "../../src/schema/index.js";
 
 const fixturesDir = resolve(import.meta.dirname, "../fixtures");
@@ -215,8 +216,8 @@ describe("checkReferences", () => {
         },
       },
       handoff_types: {
-        h: { version: 1, payload: {} },
-        r: { version: 1, payload: {} },
+        h: { version: 1, schema: {} },
+        r: { version: 1, schema: {} },
       },
     });
     const diagnostics = checkReferences(dsl);
@@ -291,8 +292,8 @@ describe("checkReferences", () => {
         },
       },
       handoff_types: {
-        h: { version: 1, payload: {} },
-        r: { version: 1, payload: {} },
+        h: { version: 1, schema: {} },
+        r: { version: 1, schema: {} },
       },
     });
     const diagnostics = checkReferences(dsl);
@@ -407,8 +408,8 @@ describe("checkReferences", () => {
         },
       },
       handoff_types: {
-        inv: { version: 1, payload: {} },
-        res: { version: 1, payload: {} },
+        inv: { version: 1, schema: {} },
+        res: { version: 1, schema: {} },
       },
     });
     const diagnostics = checkReferences(dsl);
@@ -440,8 +441,8 @@ describe("checkReferences", () => {
         },
       },
       handoff_types: {
-        inv: { version: 1, payload: {} },
-        res: { version: 1, payload: {} },
+        inv: { version: 1, schema: {} },
+        res: { version: 1, schema: {} },
       },
     });
     const diagnostics = checkReferences(dsl);
@@ -482,14 +483,14 @@ describe("checkReferences", () => {
     expect(diagnostics.some((d) => d.message.includes("Prerequisite target"))).toBe(true);
   });
 
-  it("detects payload required field missing from properties (payload-required-not-in-properties)", () => {
+  it("detects schema required field missing from properties (schema-required-not-in-properties)", () => {
     const dsl = DslSchema.parse({
       version: 1,
       system: { id: "s", name: "S", default_workflow_order: [] },
       handoff_types: {
         h: {
           version: 1,
-          payload: {
+          schema: {
             required: ["missingKey"],
             properties: { other: { type: "string" } },
           },
@@ -497,18 +498,18 @@ describe("checkReferences", () => {
       },
     });
     const diagnostics = checkReferences(dsl);
-    expect(diagnostics.some((d) => d.code === "payload-required-not-in-properties")).toBe(true);
+    expect(diagnostics.some((d) => d.code === "schema-required-not-in-properties")).toBe(true);
     expect(diagnostics.some((d) => d.message.includes("missingKey"))).toBe(true);
   });
 
-  it("detects payload property with empty enum (payload-empty-enum)", () => {
+  it("detects schema property with empty enum (schema-empty-enum)", () => {
     const dsl = DslSchema.parse({
       version: 1,
       system: { id: "s", name: "S", default_workflow_order: [] },
       handoff_types: {
         h: {
           version: 1,
-          payload: {
+          schema: {
             properties: {
               status: { type: "string", enum: [] },
             },
@@ -517,7 +518,7 @@ describe("checkReferences", () => {
       },
     });
     const diagnostics = checkReferences(dsl);
-    expect(diagnostics.some((d) => d.code === "payload-empty-enum")).toBe(true);
+    expect(diagnostics.some((d) => d.code === "schema-empty-enum")).toBe(true);
     expect(diagnostics.some((d) => d.message.includes("empty enum"))).toBe(true);
   });
 
@@ -539,11 +540,78 @@ describe("checkReferences", () => {
         t1: { description: "d", target_agent: "a1", allowed_from_agents: ["a1"], workflow: "p", input_artifacts: ["art1"], invocation_handoff: "inv", result_handoff: "res" },
       },
       handoff_types: {
-        inv: { version: 1, payload: { required: ["taskId"], properties: { taskId: { type: "string" } } } },
-        res: { version: 1, payload: { properties: { outcome: { type: "string", enum: ["ok", "fail"] } } } },
+        inv: { version: 1, schema: { required: ["taskId"], properties: { taskId: { type: "string" } } } },
+        res: { version: 1, schema: { properties: { outcome: { type: "string", enum: ["ok", "fail"] } } } },
       },
     });
     const diagnostics = checkReferences(dsl);
+    expect(diagnostics).toHaveLength(0);
+  });
+});
+
+describe("validateHandoffSchemas", () => {
+  it("passes for valid JSON Schema in handoff_types", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      handoff_types: {
+        h: {
+          version: 1,
+          schema: {
+            type: "object",
+            required: ["a"],
+            properties: { a: { type: "string" } },
+          },
+        },
+      },
+    });
+    const diagnostics = validateHandoffSchemas(dsl);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("passes for empty schema", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      handoff_types: { h: { version: 1, schema: {} } },
+    });
+    const diagnostics = validateHandoffSchemas(dsl);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("detects invalid JSON Schema", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      handoff_types: {
+        h: {
+          version: 1,
+          schema: { type: "not-a-valid-type" },
+        },
+      },
+    });
+    const diagnostics = validateHandoffSchemas(dsl);
+    expect(diagnostics.length).toBeGreaterThan(0);
+    expect(diagnostics[0].code).toBe("invalid-handoff-schema");
+  });
+
+  it("passes for schema with allOf", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      handoff_types: {
+        h: {
+          version: 1,
+          schema: {
+            allOf: [
+              { type: "object", properties: { a: { type: "string" } } },
+              { type: "object", properties: { b: { type: "number" } } },
+            ],
+          },
+        },
+      },
+    });
+    const diagnostics = validateHandoffSchemas(dsl);
     expect(diagnostics).toHaveLength(0);
   });
 });

@@ -97,12 +97,12 @@ function createMinimalDsl(): Dsl {
       "task-request": {
         version: 1,
         description: "Task invocation",
-        payload: { properties: { message: { type: "string" } } },
+        schema: { properties: { message: { type: "string" } } },
       },
       "task-result": {
         version: 1,
         description: "Task result",
-        payload: { properties: { result: { type: "string" } } },
+        schema: { properties: { result: { type: "string" } } },
       },
     },
     workflow: {

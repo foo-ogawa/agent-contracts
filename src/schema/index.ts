@@ -9,8 +9,9 @@ export {
   type Rule,
 } from "./agent.js";
 export { ArtifactSchema, type Artifact } from "./artifact.js";
-export { DslSchema, type Dsl } from "./dsl.js";
+export { ComponentsSchema, DslSchema, type Components, type Dsl } from "./dsl.js";
 export { HandoffTypeSchema, type HandoffType } from "./handoff-type.js";
+export { resolveAllOf } from "./json-schema-utils.js";
 export {
   AppendOperatorSchema,
   type AppendOperator,

@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import Handlebars from "handlebars";
 import type { Dsl } from "../schema/index.js";
+import { resolveAllOf } from "../schema/index.js";
 import type { ResolvedRenderTarget, ContextType } from "../config/types.js";
 import {
   buildPerAgentContext,
@@ -35,19 +36,20 @@ interface PayloadFieldInfo {
 
 Handlebars.registerHelper(
   "lookupPayloadFields",
-  (payload: Record<string, unknown>): PayloadFieldInfo[] => {
-    const props = payload?.["properties"] as
+  (schema: Record<string, unknown>): PayloadFieldInfo[] => {
+    const effective = resolveAllOf(schema ?? {});
+    const props = effective["properties"] as
       | Record<string, Record<string, unknown>>
       | undefined;
     if (!props) return [];
     const requiredSet = new Set(
-      (payload["required"] as string[] | undefined) ?? [],
+      (effective["required"] as string[] | undefined) ?? [],
     );
-    return Object.entries(props).map(([name, schema]) => {
-      const enumVals = schema["enum"] as string[] | undefined;
+    return Object.entries(props).map(([name, sub]) => {
+      const enumVals = sub["enum"] as string[] | undefined;
       return {
         name,
-        type: (schema["type"] as string) ?? "any",
+        type: (sub["type"] as string) ?? "any",
         required: requiredSet.has(name),
         enum: enumVals ? enumVals.join(" | ") : undefined,
       };
