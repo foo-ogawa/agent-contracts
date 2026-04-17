@@ -160,7 +160,7 @@ function applyMapMergeOperator(
   }
 }
 
-function deepMergeEntities(
+export function deepMergeEntities(
   base: AnyRecord,
   project: AnyRecord,
   path: string,
@@ -205,7 +205,7 @@ function deepMergeEntities(
   return result;
 }
 
-function mergeEntityMaps(
+export function mergeEntityMaps(
   baseMap: AnyRecord,
   projectMap: AnyRecord,
   path: string,

@@ -1,8 +1,8 @@
 # Guardrail Definition & DI Binding Specification
 
-**Version**: 0.1.0 (draft)
-**Date**: 2026-04-16
-**Status**: Proposed
+**Version**: 0.2.0
+**Date**: 2026-04-17
+**Status**: Partially Implemented
 **Prerequisite reading**: `guardrail-di-spec.md`, `shift-left-guidline.md`, `feasibility-study.md`, `ai-observ-agent-contracts-refactoring.md`
 
 ---
@@ -790,10 +790,13 @@ agent-contracts generate guardrails -c agent-contracts.config.yaml --binding cur
 1. Load config
 2. Load and resolve DSL (existing pipeline)
 3. Select `active_guardrail_policy` from DSL `guardrail_policies`
-4. Load each binding file from `config.bindings`
-5. Validate binding schemas
-6. Run cross-reference checks (binding keys → DSL guardrails, policy → guardrails)
-7. For each binding with `outputs`:
+4. Load each binding file from `config.bindings`:
+   a. Parse YAML
+   b. Resolve `extends` chain recursively (see section 10.2)
+   c. Merge base and project bindings
+   d. Validate merged result against `SoftwareBindingSchema`
+5. Run cross-reference checks (binding keys → DSL guardrails, policy → guardrails)
+6. For each binding with `outputs`:
    a. Resolve the `GuardrailGenerationContext` (see section 9)
    b. For each output entry, resolve the target path (section 5)
    c. Render using inline or external template
@@ -933,26 +936,170 @@ The resolved DSL contains both `no-force-push` (from base) and `english-only-cod
 
 ### 10.2 Binding Inheritance
 
-Binding files support their own `extends` field:
+Binding files support their own `extends` field, mirroring the DSL-level `extends` mechanism. This allows organizations to define shared base bindings (e.g., common guardrail implementations for Cursor or Git) and let individual projects extend them with project-specific additions or overrides.
+
+**Status**: Implemented in v0.11.x (`src/config/binding-loader.ts`, `src/config/binding-merger.ts`).
+
+#### 10.2.1 Resolution Pipeline
+
+When `loadBindings` encounters a binding file with an `extends` field, it resolves the base before schema validation:
+
+1. Parse the binding YAML into a raw object
+2. If `extends` is present:
+   a. Resolve the base path (local or npm package — see §10.2.3)
+   b. Load the base binding YAML recursively (the base may itself have `extends`)
+   c. Merge base and project using `mergeBinding()` (see §10.2.2)
+3. Validate the merged result against `SoftwareBindingSchema`
+
+The `extends` field is stripped from the merged result, just like DSL `extends`.
+
+#### 10.2.2 Merge Semantics
+
+The `mergeBinding(base, project)` function applies field-specific merge strategies:
+
+| Field | Merge Behavior |
+|-------|---------------|
+| `software` | Project wins (scalar override) |
+| `version` | Project wins (scalar override) |
+| `guardrail_impl` | **Map merge** by guardrail ID. New IDs from the project are added. Same IDs are deep-merged (project fields override base fields within each guardrail entry). Merge operators (`$append`, `$prepend`, `$insert_after`, `$replace`, `$remove`) are supported on `checks` arrays when `extends` is present. |
+| `outputs` | **Map merge** by output ID. New output IDs from the project are added. Same IDs are deep-merged (project fields override base fields). |
+| `reporting` | **Deep merge**. Project fields override base fields recursively. If only the base has `reporting`, it is inherited as-is. |
+| passthrough fields (`x-*`, etc.) | Project wins for same keys; base keys not in the project are preserved. |
+| `extends` | Stripped from the final merged result. |
+
+The merge implementation reuses `mergeEntityMaps` and `deepMergeEntities` from the DSL merger (`src/resolver/merger.ts`), ensuring consistent operator behavior.
+
+**Example — disjoint guardrail_impl (typical project extension):**
 
 ```yaml
-# agent-contracts/bindings/cursor.yaml
-extends: "@my-org/cursor-bindings-base"
+# base/bindings/cursor.yaml
 software: cursor
 version: 1
-
 guardrail_impl:
-  english-only-code:
+  no-force-push:
     checks:
-      - hook_event: afterFileEdit
-        matcher:
-          type: content_regex
-          pattern: "[\\u3040-\\u309F]"
-          file_glob: "src/**"
-        message: "Japanese characters detected"
+      - hook_event: beforeShellExecution
+        matcher: { type: command_regex, pattern: "git\\s+push\\s+.*--force" }
+        message: "Force push is forbidden"
+  no-rebase:
+    checks:
+      - hook_event: beforeShellExecution
+        matcher: { type: command_regex, pattern: "git\\s+rebase" }
+        message: "Rebase is prohibited"
+outputs:
+  policy-bundle:
+    target: "{cursor_root}/guardrails/policy.json"
+    mode: write
+    inline_template: "{{json resolved_checks}}"
 ```
 
-The binding loader resolves `extends` before merging, using the same base resolution mechanism as DSL extends.
+```yaml
+# project/bindings/cursor.yaml
+extends: ../../base/bindings/cursor.yaml
+software: cursor
+version: 1
+guardrail_impl:
+  lint-on-save:
+    checks:
+      - hook_event: afterFileEdit
+        matcher: { type: file_glob, pattern: "**/*.{ts,tsx}" }
+        message: "TS file edited — lint results attached."
+  lineage-impact-check:
+    checks:
+      - hook_event: afterFileEdit
+        matcher: { type: file_glob, pattern: "{server/**,frontend/**}/*.ts" }
+        message: "Lineage-scoped file changed."
+```
+
+Merged result: `guardrail_impl` contains all four entries (`no-force-push`, `no-rebase`, `lint-on-save`, `lineage-impact-check`). The `outputs.policy-bundle` is inherited from the base, producing a single `policy.json` with checks from all four guardrails.
+
+**Example — $append operator on checks array:**
+
+```yaml
+# project/bindings/cursor.yaml
+extends: ../../base/bindings/cursor.yaml
+software: cursor
+version: 1
+guardrail_impl:
+  no-force-push:
+    checks:
+      $append:
+        - hook_event: beforeShellExecution
+          matcher: { type: command_regex, pattern: "git\\s+push\\s+.*-f\\b" }
+          message: "Force push (-f shorthand) is forbidden"
+```
+
+Merged result: `no-force-push.checks` contains both the base check (`--force`) and the appended check (`-f`).
+
+**Example — output override:**
+
+```yaml
+# project/bindings/cursor.yaml
+extends: ../../base/bindings/cursor.yaml
+software: cursor
+version: 1
+outputs:
+  policy-bundle:
+    target: "{cursor_root}/guardrails/policy.json"
+    mode: write
+    template: ./templates/custom-policy.json.hbs
+```
+
+Merged result: `policy-bundle.template` is overridden to use a project-specific template, while the `target` is preserved from the project definition.
+
+#### 10.2.3 Base Path Resolution
+
+The `extends` value is resolved using the same strategies as DSL `extends`:
+
+| Pattern | Resolution |
+|---------|-----------|
+| `./path` or `../path` | Relative to the binding file's directory |
+| `@scope/package` or `package-name` | npm package resolution via `import.meta.resolve` |
+
+**Local path resolution:**
+
+- If the path resolves to a **file**, that file is loaded directly.
+- If the path resolves to a **directory**, the loader looks for `binding.yaml` or `binding.yml` within it (in that order). If neither exists, an error is thrown.
+
+**npm package resolution:**
+
+```yaml
+extends: "@my-org/agent-contracts-base-bindings"
+```
+
+The loader uses `import.meta.resolve` to find the package, then looks for a `binding.yaml` entry file in the resolved directory.
+
+#### 10.2.4 Chained Inheritance
+
+Binding `extends` supports arbitrary chain depth. Each base is resolved recursively before merging:
+
+```
+grandparent.yaml → parent.yaml → child.yaml
+```
+
+The merge applies bottom-up: grandparent is merged with parent first, then the result is merged with child. This follows the same precedence as DSL `extends` chains.
+
+#### 10.2.5 Circular Detection
+
+The binding loader tracks all visited file paths during recursive resolution. If a path is encountered a second time, the loader throws a `ConfigLoadError` with a clear message:
+
+```
+Circular binding extends detected: /path/to/binding.yaml
+```
+
+#### 10.2.6 Config Impact
+
+When using binding `extends`, the config's `bindings` array should list only the **leaf** (child) binding files. Base bindings referenced via `extends` are loaded automatically and should not appear separately in the config:
+
+```yaml
+# agent-contracts.config.yaml
+bindings:
+  - ./bindings/cursor.yaml         # extends base internally
+  - ./bindings/git.yaml
+  - ./bindings/observability.yaml
+```
+
+If both a base and its child are listed in the config, they are treated as independent bindings — the base is loaded twice (once standalone, once as extends target). This is valid but typically not desired.
 
 ---
 
@@ -1012,15 +1159,16 @@ Additionally, a new schema file `schemas/binding.schema.json` should be generate
 
 ## 13. Implementation Priority
 
-| Order | Item | Estimated Effort |
-|-------|------|-----------------|
-| 1 | DSL `guardrails:` schema + validate/lint | 1 week |
-| 2 | DSL `guardrail_policies:` schema + guardrail ID reference checks | 3 days |
-| 3 | Config `bindings:` + `active_guardrail_policy:` + `paths:` + binding loader | 1 week |
-| 4 | Binding validation + DSL↔binding cross-reference checks | 3 days |
-| 5 | `generate guardrails` command: Cursor minimal implementation (path resolution + inline_template) | 1–2 weeks |
-| 6 | Observability binding: reporting definition + event schema output | 3 days |
-| 7 | GitHub / Git binding support | 1 week each |
+| Order | Item | Estimated Effort | Status |
+|-------|------|-----------------|--------|
+| 1 | DSL `guardrails:` schema + validate/lint | 1 week | ✅ Done |
+| 2 | DSL `guardrail_policies:` schema + guardrail ID reference checks | 3 days | ✅ Done |
+| 3 | Config `bindings:` + `active_guardrail_policy:` + `paths:` + binding loader | 1 week | ✅ Done |
+| 4 | Binding validation + DSL↔binding cross-reference checks | 3 days | ✅ Done |
+| 5 | `generate guardrails` command: Cursor minimal implementation (path resolution + inline_template) | 1–2 weeks | ✅ Done |
+| 5a | Binding `extends` inheritance (§10.2) | 2 days | ✅ Done (v0.2.0) |
+| 6 | Observability binding: reporting definition + event schema output | 3 days | Planned |
+| 7 | GitHub / Git binding support | 1 week each | Planned |
 
 ### 13.1 Vertical Slice Strategy
 
@@ -1052,3 +1200,5 @@ This validates the entire pipeline before broadening to more guardrails and bind
 | Observability binding has no `guardrail_impl` | The observability engine never evaluates guardrails; it only defines recording commands and event schemas |
 | `reporting.commands` uses placeholder patterns | Templates expand placeholders without knowing the observability engine's CLI parameter format; recording backend is swappable |
 | Hook-event-level file generation with subshell script execution | One pre-commit file contains all guardrails; script exit codes don't affect other checks; block accumulation determines final exit |
+| Binding `extends` mirrors DSL `extends` semantics | Reuses the same merge operators and resolution strategies; organizations define shared base bindings, projects extend with additions; config lists only leaf bindings |
+| `mergeBinding` reuses DSL merger primitives (`mergeEntityMaps`, `deepMergeEntities`) | Consistent merge behavior across DSL and bindings; single source of truth for operator semantics; reduces implementation surface |

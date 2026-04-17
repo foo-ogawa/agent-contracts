@@ -1003,6 +1003,76 @@ outputs:
     template: ./templates/cursor-hook-wrapper.sh.hbs
 ````
 
+### Binding inheritance
+
+Binding files support `extends` for inheriting and extending a base binding, using the same mechanism as DSL-level `extends`.
+
+A base binding defines shared guardrail implementations and outputs:
+
+````yaml
+# skeleton/bindings/cursor.yaml (base)
+software: cursor
+version: 1
+
+guardrail_impl:
+  no-force-push:
+    checks:
+      - hook_event: beforeShellExecution
+        matcher:
+          type: command_regex
+          pattern: "git\\s+push\\s+.*--force"
+        message: "Force push is forbidden"
+
+outputs:
+  policy-bundle:
+    target: "{cursor_root}/guardrails/policy.json"
+    mode: write
+    inline_template: "{{json resolved_checks}}"
+````
+
+A project binding extends the base and adds project-specific guardrail implementations:
+
+````yaml
+# project/bindings/cursor.yaml
+extends: ../../skeleton/bindings/cursor.yaml
+software: cursor
+version: 1
+
+guardrail_impl:
+  lint-on-save:
+    checks:
+      - hook_event: afterFileEdit
+        matcher:
+          type: file_glob
+          pattern: "**/*.{ts,tsx}"
+        message: "TS file edited — lint results attached."
+````
+
+The result is a single merged binding with all guardrail implementations from both base and project.
+
+Merge behavior:
+
+| Field | Behavior |
+|-------|----------|
+| `software` | Project wins |
+| `guardrail_impl` | Map merge by guardrail ID (new IDs added; same ID deep-merged) |
+| `outputs` | Map merge by output ID (project overrides base) |
+| `reporting` | Deep merge (project fields override base) |
+| passthrough fields | Project wins |
+
+All merge operators (`$append`, `$prepend`, `$insert_after`, `$replace`, `$remove`) work within binding `extends`, the same as DSL `extends`.
+
+Chained inheritance (grandparent → parent → child) and both local path (`./`, `../`) and npm package references are supported. Circular extends are detected and rejected.
+
+When using binding `extends`, the config only needs to list the child binding:
+
+````yaml
+# agent-contracts.config.yaml
+bindings:
+  - ./bindings/cursor.yaml    # extends base internally
+  - ./bindings/git.yaml
+````
+
 ### Config
 
 ````yaml
