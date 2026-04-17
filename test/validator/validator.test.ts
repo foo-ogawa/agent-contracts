@@ -615,3 +615,165 @@ describe("validateHandoffSchemas", () => {
     expect(diagnostics).toHaveLength(0);
   });
 });
+
+describe("checkReferences — guardrail scope and policy references", () => {
+  it("detects non-existent agent in guardrail scope", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      guardrails: {
+        g1: { description: "d", scope: { agents: ["missing-agent"] }, tags: [] },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-scope-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("missing-agent"))).toBe(true);
+  });
+
+  it("detects non-existent task in guardrail scope", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      guardrails: {
+        g1: { description: "d", scope: { tasks: ["missing-task"] }, tags: [] },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-scope-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("missing-task"))).toBe(true);
+  });
+
+  it("detects non-existent tool in guardrail scope", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      guardrails: {
+        g1: { description: "d", scope: { tools: ["missing-tool"] }, tags: [] },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-scope-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("missing-tool"))).toBe(true);
+  });
+
+  it("detects non-existent artifact in guardrail scope", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      guardrails: {
+        g1: { description: "d", scope: { artifacts: ["missing-artifact"] }, tags: [] },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-scope-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("missing-artifact"))).toBe(true);
+  });
+
+  it("detects non-existent workflow in guardrail scope", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
+      guardrails: {
+        g1: { description: "d", scope: { workflows: ["not-in-default-order"] }, tags: [] },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-scope-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("not-in-default-order"))).toBe(true);
+  });
+
+  it("detects guardrail policy rule referencing non-existent guardrail", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      guardrail_policies: {
+        p1: {
+          rules: [{ guardrail: "no-such-guardrail", severity: "info", action: "info" }],
+        },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    expect(diagnostics.some((d) => d.code === "guardrail-policy-ref-not-found")).toBe(true);
+    expect(diagnostics.some((d) => d.message.includes("no-such-guardrail"))).toBe(true);
+  });
+
+  it("returns no guardrail diagnostics when all references are valid", () => {
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["w1"] },
+      agents: {
+        a1: {
+          role_name: "R",
+          purpose: "P",
+          can_read_artifacts: ["art1"],
+          can_write_artifacts: [],
+          can_execute_tools: ["tool1"],
+          can_perform_validations: [],
+          can_invoke_agents: [],
+          can_return_handoffs: ["h1", "h2"],
+        },
+      },
+      artifacts: {
+        art1: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+        },
+      },
+      tools: {
+        tool1: {
+          kind: "lint",
+          invokable_by: ["a1"],
+          input_artifacts: [],
+          output_artifacts: [],
+          side_effects: [],
+        },
+      },
+      tasks: {
+        t1: {
+          description: "d",
+          target_agent: "a1",
+          allowed_from_agents: ["a1"],
+          workflow: "w1",
+          input_artifacts: ["art1"],
+          invocation_handoff: "h1",
+          result_handoff: "h2",
+        },
+      },
+      handoff_types: {
+        h1: { version: 1, schema: {} },
+        h2: { version: 1, schema: {} },
+      },
+      workflow: {
+        w1: { steps: [] },
+      },
+      guardrails: {
+        gr1: {
+          description: "Coherent scope",
+          scope: {
+            agents: ["a1"],
+            tasks: ["t1"],
+            tools: ["tool1"],
+            artifacts: ["art1"],
+            workflows: ["w1"],
+          },
+          tags: [],
+        },
+      },
+      guardrail_policies: {
+        pol1: {
+          rules: [{ guardrail: "gr1", severity: "critical", action: "block" }],
+        },
+      },
+    });
+    const diagnostics = checkReferences(dsl);
+    const grDiags = diagnostics.filter(
+      (d) =>
+        d.code === "guardrail-scope-ref-not-found" || d.code === "guardrail-policy-ref-not-found",
+    );
+    expect(grDiags).toHaveLength(0);
+  });
+});
