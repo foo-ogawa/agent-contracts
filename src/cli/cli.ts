@@ -5,6 +5,7 @@ import { validateCommand } from "./commands/validate.js";
 import { lintCommand } from "./commands/lint.js";
 import { renderCommand } from "./commands/render.js";
 import { checkCommand } from "./commands/check.js";
+import { generateGuardrailsCommand } from "./commands/generate-guardrails.js";
 
 const program = new Command();
 
@@ -18,5 +19,6 @@ program.addCommand(validateCommand);
 program.addCommand(lintCommand);
 program.addCommand(renderCommand);
 program.addCommand(checkCommand);
+program.addCommand(generateGuardrailsCommand);
 
 program.parse();

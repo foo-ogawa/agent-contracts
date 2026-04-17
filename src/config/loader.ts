@@ -84,6 +84,9 @@ export async function loadConfig(
       output: resolve(configDir, r.output),
     })),
     configDir,
+    bindings: (config.bindings ?? []).map((b) => resolve(configDir, b)),
+    activeGuardrailPolicy: config.active_guardrail_policy,
+    paths: config.paths,
   };
 }
 

@@ -9,6 +9,8 @@ export const CONTEXT_TYPES = [
   "handoff_type",
   "workflow",
   "policy",
+  "guardrail",
+  "guardrail_policy",
   "system",
 ] as const;
 
@@ -47,6 +49,9 @@ export const AgentContractsConfigSchema = z.object({
   dsl: z.string(),
   vars: z.record(z.string(), z.string()).optional(),
   renders: z.array(RenderTargetSchema).min(1),
+  bindings: z.array(z.string()).default([]),
+  active_guardrail_policy: z.string().optional(),
+  paths: z.record(z.string(), z.string()).optional(),
 });
 
 export type AgentContractsConfig = z.infer<typeof AgentContractsConfigSchema>;
@@ -64,4 +69,7 @@ export interface ResolvedConfig {
   vars?: Record<string, string>;
   renders: ResolvedRenderTarget[];
   configDir: string;
+  bindings: string[];
+  activeGuardrailPolicy?: string;
+  paths?: Record<string, string>;
 }

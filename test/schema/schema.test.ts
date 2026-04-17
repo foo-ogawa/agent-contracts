@@ -281,6 +281,8 @@ describe("schema default values", () => {
     expect(d.handoff_types).toEqual({});
     expect(d.workflow).toEqual({});
     expect(d.policies).toEqual({});
+    expect(d.guardrails).toEqual({});
+    expect(d.guardrail_policies).toEqual({});
   });
 });
 
@@ -831,6 +833,8 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
     expect(props).toHaveProperty("handoff_types");
     expect(props).toHaveProperty("workflow");
     expect(props).toHaveProperty("policies");
+    expect(props).toHaveProperty("guardrails");
+    expect(props).toHaveProperty("guardrail_policies");
     expect(raw.required).toEqual([
       "version",
       "system",
@@ -842,6 +846,8 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
       "handoff_types",
       "workflow",
       "policies",
+      "guardrails",
+      "guardrail_policies",
       "components",
     ]);
   });

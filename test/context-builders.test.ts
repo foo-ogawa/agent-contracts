@@ -125,6 +125,8 @@ function createMinimalDsl(): Dsl {
         requires_validations: ["code-review"],
       },
     },
+    guardrails: {},
+    guardrail_policies: {},
   };
 }
 

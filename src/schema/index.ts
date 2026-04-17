@@ -9,8 +9,32 @@ export {
   type Rule,
 } from "./agent.js";
 export { ArtifactSchema, type Artifact } from "./artifact.js";
+export {
+  BindingOutputSchema,
+  CheckSchema,
+  MatcherSchema,
+  ReportingSchema,
+  SoftwareBindingSchema,
+  type BindingOutput,
+  type Check,
+  type Matcher,
+  type Reporting,
+  type SoftwareBinding,
+} from "./binding.js";
 export { ComponentsSchema, DslSchema, type Components, type Dsl } from "./dsl.js";
 export { HandoffTypeSchema, type HandoffType } from "./handoff-type.js";
+export {
+  GuardrailPolicyRuleEscalationSchema,
+  GuardrailPolicyRuleSchema,
+  GuardrailPolicySchema,
+  GuardrailScopeSchema,
+  GuardrailSchema,
+  type Guardrail,
+  type GuardrailPolicy,
+  type GuardrailPolicyRule,
+  type GuardrailPolicyRuleEscalation,
+  type GuardrailScope,
+} from "./guardrail.js";
 export { resolveAllOf } from "./json-schema-utils.js";
 export {
   AppendOperatorSchema,

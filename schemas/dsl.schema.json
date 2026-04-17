@@ -947,6 +947,159 @@
         "additionalProperties": {}
       }
     },
+    "guardrails": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "agents": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "workflows": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": {}
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exemptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "description",
+          "scope",
+          "tags"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    "guardrail_policies": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "guardrail": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "mandatory",
+                    "warning",
+                    "info"
+                  ]
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "shadow",
+                    "info"
+                  ]
+                },
+                "allow_override": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "override_requires": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "escalation": {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "type": "string"
+                    },
+                    "condition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "target"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "guardrail",
+                "severity",
+                "action",
+                "allow_override"
+              ],
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "additionalProperties": {}
+      }
+    },
     "components": {
       "default": {
         "schemas": {}
@@ -985,6 +1138,8 @@
     "handoff_types",
     "workflow",
     "policies",
+    "guardrails",
+    "guardrail_policies",
     "components"
   ],
   "additionalProperties": {}

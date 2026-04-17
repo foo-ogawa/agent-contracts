@@ -16,6 +16,8 @@ export {
   buildHandoffTypeContext,
   buildWorkflowContext,
   buildPolicyContext,
+  buildGuardrailContext,
+  buildGuardrailPolicyContext,
   type GlobalContext,
   type SystemContext,
   type PerAgentContext,
@@ -26,14 +28,18 @@ export {
   type PerHandoffTypeContext,
   type PerWorkflowContext,
   type PerPolicyContext,
+  type PerGuardrailContext,
+  type PerGuardrailPolicyContext,
   type MergedBehavioralSpec,
   type DelegatableTaskView,
 } from "./renderer/index.js";
 export {
+  loadBindings,
   loadConfig,
   resolveDslPath,
   ConfigLoadError,
   type AgentContractsConfig,
+  type LoadedBinding,
   type ResolvedConfig,
   type RenderTarget,
   type ResolvedRenderTarget,
@@ -43,3 +49,15 @@ export {
   RenderTargetSchema,
   ContextTypeSchema,
 } from "./config/index.js";
+export {
+  generateGuardrails,
+  resolveChecks,
+  resolveBindingTargetPath,
+  type GenerateGuardrailsOptions,
+  type ResolvedCheck,
+  type GuardrailGenerationContext,
+  type GenerateResult,
+  type GenerateDiagnostic,
+  type ResolveChecksResult,
+  type PathResolveResult,
+} from "./guardrail-generator/index.js";
