@@ -251,6 +251,8 @@ const MERGE_SECTIONS = [
   "handoff_types",
   "workflow",
   "policies",
+  "guardrails",
+  "guardrail_policies",
   "components",
 ];
 

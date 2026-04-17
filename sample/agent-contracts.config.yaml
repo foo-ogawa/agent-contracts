@@ -1,5 +1,17 @@
 dsl: ./agent-contracts.yaml
 
+bindings:
+  - ./agent-contracts/bindings/cursor.yaml
+  - ./agent-contracts/bindings/git.yaml
+  - ./agent-contracts/bindings/observability.yaml
+
+active_guardrail_policy: default-enforcement
+
+paths:
+  cursor_root: .cursor
+  git_hooks_root: scripts/git-hooks
+  observability_root: .observ/config
+
 renders:
   - template: ./templates/agent-prompt.md.hbs
     context: agent

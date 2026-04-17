@@ -6,6 +6,7 @@ import { taskAgentBindingRule } from "./rules/task-agent-binding.js";
 import { mergeIntegrityRule } from "./rules/merge-integrity.js";
 import { artifactOwnershipRule } from "./rules/artifact-ownership.js";
 import { toolCommandsRule } from "./rules/tool-commands.js";
+import { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.js";
 
 const builtinRules: LintRule[] = [
   validationCoverageRule,
@@ -14,6 +15,7 @@ const builtinRules: LintRule[] = [
   mergeIntegrityRule,
   artifactOwnershipRule,
   toolCommandsRule,
+  guardrailPolicyCoverageRule,
 ];
 
 export function lint(

@@ -13,6 +13,8 @@ export {
   buildHandoffTypeContext,
   buildWorkflowContext,
   buildPolicyContext,
+  buildGuardrailContext,
+  buildGuardrailPolicyContext,
   type GlobalContext,
   type SystemContext,
   type PerAgentContext,
@@ -23,6 +25,8 @@ export {
   type PerHandoffTypeContext,
   type PerWorkflowContext,
   type PerPolicyContext,
+  type PerGuardrailContext,
+  type PerGuardrailPolicyContext,
   type MergedBehavioralSpec,
   type DelegatableTaskView,
 } from "./context.js";

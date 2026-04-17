@@ -17,18 +17,20 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
   const handoffKinds = new Set(Object.keys(dsl.handoff_types));
   const taskIds = new Set(Object.keys(dsl.tasks));
   const workflowIds = new Set(dsl.system.default_workflow_order);
+  const guardrailIds = new Set(Object.keys(dsl.guardrails));
 
   function checkExists(
     value: string,
     validSet: Set<string>,
     entityType: string,
     path: string,
+    code: string = "reference-not-found",
   ) {
     if (!validSet.has(value)) {
       diagnostics.push({
         path,
         message: `Reference "${value}" not found in ${entityType}`,
-        code: "reference-not-found",
+        code,
       });
     }
   }
@@ -239,6 +241,77 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
           }
         }
       }
+    }
+  }
+
+  for (const [id, guardrail] of Object.entries(dsl.guardrails)) {
+    if (guardrail.scope.agents) {
+      for (const ref of guardrail.scope.agents) {
+        checkExists(
+          ref,
+          agentIds,
+          "agents",
+          `guardrails.${id}.scope.agents`,
+          "guardrail-scope-ref-not-found",
+        );
+      }
+    }
+    if (guardrail.scope.tasks) {
+      for (const ref of guardrail.scope.tasks) {
+        checkExists(
+          ref,
+          taskIds,
+          "tasks",
+          `guardrails.${id}.scope.tasks`,
+          "guardrail-scope-ref-not-found",
+        );
+      }
+    }
+    if (guardrail.scope.tools) {
+      for (const ref of guardrail.scope.tools) {
+        checkExists(
+          ref,
+          toolIds,
+          "tools",
+          `guardrails.${id}.scope.tools`,
+          "guardrail-scope-ref-not-found",
+        );
+      }
+    }
+    if (guardrail.scope.artifacts) {
+      for (const ref of guardrail.scope.artifacts) {
+        checkExists(
+          ref,
+          artifactIds,
+          "artifacts",
+          `guardrails.${id}.scope.artifacts`,
+          "guardrail-scope-ref-not-found",
+        );
+      }
+    }
+    if (guardrail.scope.workflows) {
+      for (const ref of guardrail.scope.workflows) {
+        checkExists(
+          ref,
+          workflowIds,
+          "system.default_workflow_order",
+          `guardrails.${id}.scope.workflows`,
+          "guardrail-scope-ref-not-found",
+        );
+      }
+    }
+  }
+
+  for (const [policyId, policy] of Object.entries(dsl.guardrail_policies)) {
+    for (let i = 0; i < policy.rules.length; i++) {
+      const rule = policy.rules[i];
+      checkExists(
+        rule.guardrail,
+        guardrailIds,
+        "guardrails",
+        `guardrail_policies.${policyId}.rules[${i}].guardrail`,
+        "guardrail-policy-ref-not-found",
+      );
     }
   }
 

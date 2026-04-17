@@ -44,6 +44,8 @@ function createMinimalDsl(): Dsl {
     handoff_types: {},
     workflow: {},
     policies: {},
+    guardrails: {},
+    guardrail_policies: {},
   };
 }
 

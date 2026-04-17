@@ -14,6 +14,8 @@ import {
   buildHandoffTypeContext,
   buildWorkflowContext,
   buildPolicyContext,
+  buildGuardrailContext,
+  buildGuardrailPolicyContext,
 } from "./context.js";
 import { generateSequenceDiagram } from "./sequence-diagram.js";
 import { generateOverviewFlowchart } from "./overview-flowchart.js";
@@ -258,6 +260,8 @@ function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> 
     handoff_type: dsl.handoff_types,
     workflow: dsl.workflow,
     policy: dsl.policies,
+    guardrail: dsl.guardrails,
+    guardrail_policy: dsl.guardrail_policies,
   };
   return sectionMap[context] ?? {};
 }
@@ -301,6 +305,10 @@ function buildEntityContext(
       return buildWorkflowContext(dsl, entityId);
     case "policy":
       return buildPolicyContext(dsl, entityId);
+    case "guardrail":
+      return buildGuardrailContext(dsl, entityId);
+    case "guardrail_policy":
+      return buildGuardrailPolicyContext(dsl, entityId);
     case "system":
       return buildSystemContext(dsl);
   }

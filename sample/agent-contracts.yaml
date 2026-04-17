@@ -270,3 +270,71 @@ handoff_types:
 
 workflow: {}
 policies: {}
+
+guardrails:
+  no-force-push:
+    description: "Force push to protected branches is forbidden"
+    scope:
+      tools: [code-editor]
+    rationale: "Force push destroys commit history and breaks collaborator state"
+    tags: [branch-protection, safety]
+
+  no-rebase:
+    description: "Rebase is prohibited"
+    scope:
+      tools: [code-editor]
+    rationale: "Rebase rewrites history; use merge instead"
+    tags: [branch-protection, safety]
+
+  english-only-code:
+    description: "Source code must not contain Japanese characters"
+    scope:
+      artifacts: [codebase]
+    rationale: "English-only development artifacts policy"
+    tags: [quality, i18n]
+    exemptions:
+      - "docs/**"
+      - "*.md"
+
+  test-before-commit:
+    description: "All tests must pass before committing"
+    scope:
+      tools: [test-runner]
+    rationale: "Local verification before CI push"
+    tags: [quality, testing]
+
+guardrail_policies:
+  default-enforcement:
+    description: "Standard enforcement policy for all guardrails"
+    rules:
+      - guardrail: no-force-push
+        severity: critical
+        action: block
+        allow_override: false
+
+      - guardrail: no-rebase
+        severity: critical
+        action: block
+        allow_override: false
+
+      - guardrail: english-only-code
+        severity: warning
+        action: warn
+        allow_override: true
+        override_requires: [rationale]
+
+      - guardrail: test-before-commit
+        severity: mandatory
+        action: warn
+        allow_override: false
+
+  shadow-mode:
+    description: "Shadow mode for testing guardrails without enforcement"
+    rules:
+      - guardrail: no-force-push
+        severity: info
+        action: shadow
+
+      - guardrail: english-only-code
+        severity: info
+        action: shadow

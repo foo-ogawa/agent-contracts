@@ -1,4 +1,8 @@
 export {
+  loadBindings,
+  type LoadedBinding,
+} from "./binding-loader.js";
+export {
   type AgentContractsConfig,
   type ResolvedConfig,
   type RenderTarget,

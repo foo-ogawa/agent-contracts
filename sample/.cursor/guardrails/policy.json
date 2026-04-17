@@ -1,0 +1,161 @@
+[
+  {
+    "guardrail_id": "no-force-push",
+    "guardrail": {
+      "description": "Force push to protected branches is forbidden",
+      "scope": {
+        "tools": [
+          "code-editor"
+        ]
+      },
+      "rationale": "Force push destroys commit history and breaks collaborator state",
+      "tags": [
+        "branch-protection",
+        "safety"
+      ]
+    },
+    "policy_rule": {
+      "guardrail": "no-force-push",
+      "severity": "critical",
+      "action": "block",
+      "allow_override": false
+    },
+    "check": {
+      "matcher": {
+        "type": "command_regex",
+        "pattern": "git\\s+push\\s+.*--force"
+      },
+      "message": "Force push is forbidden per project guardrails",
+      "hook_event": "beforeShellExecution"
+    }
+  },
+  {
+    "guardrail_id": "no-force-push",
+    "guardrail": {
+      "description": "Force push to protected branches is forbidden",
+      "scope": {
+        "tools": [
+          "code-editor"
+        ]
+      },
+      "rationale": "Force push destroys commit history and breaks collaborator state",
+      "tags": [
+        "branch-protection",
+        "safety"
+      ]
+    },
+    "policy_rule": {
+      "guardrail": "no-force-push",
+      "severity": "critical",
+      "action": "block",
+      "allow_override": false
+    },
+    "check": {
+      "matcher": {
+        "type": "command_regex",
+        "pattern": "git\\s+push\\s+.*-f\\b"
+      },
+      "message": "Force push (-f) is forbidden per project guardrails",
+      "hook_event": "beforeShellExecution"
+    }
+  },
+  {
+    "guardrail_id": "no-rebase",
+    "guardrail": {
+      "description": "Rebase is prohibited",
+      "scope": {
+        "tools": [
+          "code-editor"
+        ]
+      },
+      "rationale": "Rebase rewrites history; use merge instead",
+      "tags": [
+        "branch-protection",
+        "safety"
+      ]
+    },
+    "policy_rule": {
+      "guardrail": "no-rebase",
+      "severity": "critical",
+      "action": "block",
+      "allow_override": false
+    },
+    "check": {
+      "matcher": {
+        "type": "command_regex",
+        "pattern": "git\\s+rebase"
+      },
+      "message": "Rebase is prohibited; use merge instead",
+      "hook_event": "beforeShellExecution"
+    }
+  },
+  {
+    "guardrail_id": "english-only-code",
+    "guardrail": {
+      "description": "Source code must not contain Japanese characters",
+      "scope": {
+        "artifacts": [
+          "codebase"
+        ]
+      },
+      "rationale": "English-only development artifacts policy",
+      "tags": [
+        "quality",
+        "i18n"
+      ],
+      "exemptions": [
+        "docs/**",
+        "*.md"
+      ]
+    },
+    "policy_rule": {
+      "guardrail": "english-only-code",
+      "severity": "warning",
+      "action": "warn",
+      "allow_override": true,
+      "override_requires": [
+        "rationale"
+      ]
+    },
+    "check": {
+      "matcher": {
+        "type": "content_regex",
+        "pattern": "[\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FFF]",
+        "file_glob": "src/**/*.{ts,rs,py}",
+        "exclude_glob": "*.md"
+      },
+      "message": "Japanese characters detected in source code",
+      "hook_event": "afterFileEdit"
+    }
+  },
+  {
+    "guardrail_id": "test-before-commit",
+    "guardrail": {
+      "description": "All tests must pass before committing",
+      "scope": {
+        "tools": [
+          "test-runner"
+        ]
+      },
+      "rationale": "Local verification before CI push",
+      "tags": [
+        "quality",
+        "testing"
+      ]
+    },
+    "policy_rule": {
+      "guardrail": "test-before-commit",
+      "severity": "mandatory",
+      "action": "warn",
+      "allow_override": false
+    },
+    "check": {
+      "matcher": {
+        "type": "command_regex",
+        "pattern": "git\\s+commit"
+      },
+      "message": "Ensure tests pass before committing",
+      "hook_event": "beforeShellExecution"
+    }
+  }
+]

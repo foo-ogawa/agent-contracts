@@ -10,6 +10,8 @@ import {
   buildHandoffTypeContext,
   buildWorkflowContext,
   buildPolicyContext,
+  buildGuardrailContext,
+  buildGuardrailPolicyContext,
 } from "../src/renderer/context.js";
 
 function createMinimalDsl(): Dsl {
@@ -123,6 +125,18 @@ function createMinimalDsl(): Dsl {
       "review-before-merge": {
         when: { artifact_type: "code" },
         requires_validations: ["code-review"],
+      },
+    },
+    guardrails: {
+      "no-force-push": {
+        description: "Force push forbidden",
+        scope: { tools: ["lint"] },
+        tags: ["safety"],
+      },
+    },
+    guardrail_policies: {
+      default: {
+        rules: [{ guardrail: "no-force-push", severity: "critical", action: "block" }],
       },
     },
   };
@@ -304,6 +318,27 @@ describe("buildPolicyContext", () => {
     const ctx = buildPolicyContext(dsl, "review-before-merge");
     expect(ctx.policy.id).toBe("review-before-merge");
     expect(ctx.policy.when.artifact_type).toBe("code");
+    expect(ctx.dsl).toBe(dsl);
+  });
+});
+
+describe("buildGuardrailContext", () => {
+  it("provides guardrail with id and dsl", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildGuardrailContext(dsl, "no-force-push");
+    expect(ctx.guardrail.id).toBe("no-force-push");
+    expect(ctx.guardrail.description).toBe("Force push forbidden");
+    expect(ctx.dsl).toBe(dsl);
+  });
+});
+
+describe("buildGuardrailPolicyContext", () => {
+  it("provides guardrail_policy with id and dsl", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildGuardrailPolicyContext(dsl, "default");
+    expect(ctx.guardrail_policy.id).toBe("default");
+    expect(ctx.guardrail_policy.rules).toHaveLength(1);
+    expect(ctx.guardrail_policy.rules[0].guardrail).toBe("no-force-push");
     expect(ctx.dsl).toBe(dsl);
   });
 });

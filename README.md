@@ -228,6 +228,23 @@ Workflow steps support additional properties:
 * `group` — consecutive steps with the same group are rendered as `par` (parallel) blocks in sequence diagrams
 * `retry` (handoff steps only) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
 
+### Guardrail
+
+A **Guardrail** declares a cross-cutting constraint:
+
+* description — what is protected
+* scope — which DSL entities it applies to (agents, tasks, tools, artifacts, workflows)
+* rationale — why the constraint exists
+* tags — classification for filtering
+* exemptions — glob patterns or entity IDs exempt from the guardrail
+
+### Guardrail Policy
+
+A **Guardrail Policy** defines enforcement strategy for guardrails:
+
+* rules — array of enforcement rules mapping guardrails to actions
+* Each rule specifies: severity (`critical`/`mandatory`/`warning`/`info`), action (`block`/`warn`/`shadow`/`info`), override permissions
+
 ### Handoff Type
 
 A **Handoff Type** defines the schema for inter-agent messages:
@@ -283,6 +300,10 @@ Design regressions become testable.
 * **Config-driven prompt rendering**
 * **Variable substitution** via `${vars.xxx}` in DSL values
 * **Inheritance with merge operators via `extends`**
+* **Guardrail definitions** for cross-cutting process constraints
+* **Guardrail policies** with configurable enforcement (block/warn/shadow/info)
+* **Software bindings** (DI) for tool-specific guardrail implementation (Cursor, Git, GitHub)
+* **Guardrail generation** from DSL + policy + bindings via `generate guardrails`
 * **Flexible file splitting** via `$ref` (replacement), `$refs` (import + deep-merge), and JSON Pointer `$ref` (in-document)
 * **JSON Schema for editor support and external tooling**
 * **CI-friendly workflow checks**
@@ -317,6 +338,8 @@ validations: {}
 handoff_types: {}
 workflow: {}
 policies: {}
+guardrails: {}
+guardrail_policies: {}
 components:
   schemas: {}
 ````
@@ -790,6 +813,7 @@ npx agent-contracts
 | `agent-contracts validate [path]` | Validate schema and references                         |
 | `agent-contracts lint [path]`     | Run semantic lint                                      |
 | `agent-contracts render`          | Render outputs from config                             |
+| `agent-contracts generate guardrails` | Generate guardrail artifacts from bindings       |
 | `agent-contracts check`           | Run resolve → validate → lint → render --check         |
 
 The `[path]` argument defaults to `agent-contracts.yaml` in the current directory.
@@ -856,6 +880,8 @@ Each `context` type provides a different rendering scope:
 | `handoff_type` | Per handoff type | `{handoff_type.id}` in output path | `handoff_type`, `relatedTasks`, `dsl` |
 | `workflow` | Per workflow phase | `{workflow.id}` in output path | `workflow`, `relatedAgents`, `relatedTasks`, `relatedTools`, `relatedArtifacts`, `relatedValidations`, `dsl` |
 | `policy` | Per policy | `{policy.id}` in output path | `policy`, `dsl` |
+| `guardrail` | Per guardrail | `{guardrail.id}` in output path | `guardrail`, `dsl` |
+| `guardrail_policy` | Per guardrail policy | `{guardrail_policy.id}` in output path | `guardrail_policy`, `dsl` |
 
 #### Enriched context details
 
@@ -903,6 +929,102 @@ Templates can use these built-in helpers:
 | `gt` / `gte` / `lt` | `{{#if (gt a b)}}` | Numeric comparisons |
 | `sequenceDiagram` | `{{{sequenceDiagram}}}` or `{{{sequenceDiagram @key ../dsl}}}` | Generate Mermaid sequence diagram. Supports `external_participants`, `group` (par blocks), `retry` (opt blocks), and read-only agent separation into Audit box |
 | `overviewFlowchart` | `{{{overviewFlowchart dsl}}}` | Generate Mermaid graph showing phases → agents/tools/artifacts relationships (system context) |
+
+---
+
+## Guardrail DI system
+
+`agent-contracts` includes a dependency injection system for guardrails that separates **what to protect** from **how to enforce** and **where to output**.
+
+### Architecture
+
+```text
+agent-contracts.yaml (DSL)        agent-contracts.config.yaml
+├─ guardrails:   (what + why)     ├─ bindings: [cursor.yaml, git.yaml, ...]
+├─ guardrail_policies: (how)      ├─ active_guardrail_policy: default
+└─ agents, tasks, ...             ├─ paths: {cursor_root: .cursor, ...}
+                                  └─ vars, renders (existing)
+```
+
+### Guardrail definition
+
+Guardrails declare constraints in the DSL without any implementation details:
+
+````yaml
+guardrails:
+  no-force-push:
+    description: "Force push to protected branches is forbidden"
+    scope:
+      tools: [git]
+    rationale: "Force push destroys commit history"
+    tags: [branch-protection, safety]
+````
+
+### Guardrail policy
+
+Policies define enforcement strategies:
+
+````yaml
+guardrail_policies:
+  default-enforcement:
+    rules:
+      - guardrail: no-force-push
+        severity: critical
+        action: block
+      - guardrail: english-only-code
+        severity: warning
+        action: warn
+        allow_override: true
+````
+
+### Software bindings
+
+Bindings define software-specific check implementations:
+
+````yaml
+# bindings/cursor.yaml
+software: cursor
+version: 1
+
+guardrail_impl:
+  no-force-push:
+    checks:
+      - hook_event: beforeShellExecution
+        matcher:
+          type: command_regex
+          pattern: "git\\s+push\\s+.*--force"
+        message: "Force push is forbidden"
+
+outputs:
+  hook-script:
+    target: "{cursor_root}/hooks/evaluate-hook.sh"
+    mode: write
+    executable: true
+    template: ./templates/cursor-hook-wrapper.sh.hbs
+````
+
+### Config
+
+````yaml
+# agent-contracts.config.yaml
+bindings:
+  - ./bindings/cursor.yaml
+  - ./bindings/git.yaml
+
+active_guardrail_policy: default-enforcement
+
+paths:
+  cursor_root: .cursor
+  git_hooks_root: scripts/git-hooks
+````
+
+### Generate command
+
+````bash
+agent-contracts generate guardrails -c agent-contracts.config.yaml
+agent-contracts generate guardrails -c agent-contracts.config.yaml --binding cursor
+agent-contracts generate guardrails -c agent-contracts.config.yaml --dry-run
+````
 
 ---
 

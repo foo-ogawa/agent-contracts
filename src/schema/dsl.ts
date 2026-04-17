@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AgentSchema } from "./agent.js";
 import { ArtifactSchema } from "./artifact.js";
 import { HandoffTypeSchema } from "./handoff-type.js";
+import { GuardrailPolicySchema, GuardrailSchema } from "./guardrail.js";
 import { PolicySchema } from "./policy.js";
 import { SystemSchema } from "./system.js";
 import { TaskSchema } from "./task.js";
@@ -35,6 +36,10 @@ export const DslSchema = z
     handoff_types: z.record(z.string(), HandoffTypeSchema).default({}),
     workflow: z.record(z.string(), WorkflowSchema).default({}),
     policies: z.record(z.string(), PolicySchema).default({}),
+    guardrails: z.record(z.string(), GuardrailSchema).default({}),
+    guardrail_policies: z
+      .record(z.string(), GuardrailPolicySchema)
+      .default({}),
     components: ComponentsSchema.default({ schemas: {} }),
   })
   .passthrough();

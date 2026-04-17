@@ -7,3 +7,4 @@ export { taskAgentBindingRule } from "./rules/task-agent-binding.js";
 export { mergeIntegrityRule } from "./rules/merge-integrity.js";
 export { artifactOwnershipRule } from "./rules/artifact-ownership.js";
 export { toolCommandsRule } from "./rules/tool-commands.js";
+export { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.js";

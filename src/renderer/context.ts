@@ -8,6 +8,8 @@ import type {
   HandoffType,
   Workflow,
   Policy,
+  Guardrail,
+  GuardrailPolicy,
   System,
 } from "../schema/index.js";
 import { resolveAllOf } from "../schema/index.js";
@@ -22,6 +24,8 @@ export interface GlobalContext {
   handoff_types: Dsl["handoff_types"];
   workflow: Dsl["workflow"];
   policies: Dsl["policies"];
+  guardrails: Dsl["guardrails"];
+  guardrail_policies: Dsl["guardrail_policies"];
   [key: string]: unknown;
 }
 
@@ -89,6 +93,18 @@ export interface PerPolicyContext {
   [key: string]: unknown;
 }
 
+export interface PerGuardrailContext {
+  guardrail: Guardrail & { id: string };
+  dsl: Dsl;
+  [key: string]: unknown;
+}
+
+export interface PerGuardrailPolicyContext {
+  guardrail_policy: GuardrailPolicy & { id: string };
+  dsl: Dsl;
+  [key: string]: unknown;
+}
+
 export interface MergedBehavioralSpec {
   responsibilities: string[];
   constraints: string[];
@@ -135,6 +151,8 @@ export function buildGlobalContext(dsl: Dsl): GlobalContext {
     handoff_types: dsl.handoff_types,
     workflow: dsl.workflow,
     policies: dsl.policies,
+    guardrails: dsl.guardrails,
+    guardrail_policies: dsl.guardrail_policies,
   };
 }
 
@@ -403,6 +421,28 @@ export function buildPolicyContext(
   const policyDef = dsl.policies[policyId];
   const policy = { ...policyDef, id: policyId } as Policy & { id: string };
   return { policy, dsl };
+}
+
+export function buildGuardrailContext(
+  dsl: Dsl,
+  guardrailId: string,
+): PerGuardrailContext {
+  const guardrailDef = dsl.guardrails[guardrailId];
+  const guardrail = { ...guardrailDef, id: guardrailId } as Guardrail & {
+    id: string;
+  };
+  return { guardrail, dsl };
+}
+
+export function buildGuardrailPolicyContext(
+  dsl: Dsl,
+  policyId: string,
+): PerGuardrailPolicyContext {
+  const policyDef = dsl.guardrail_policies[policyId];
+  const guardrail_policy = { ...policyDef, id: policyId } as GuardrailPolicy & {
+    id: string;
+  };
+  return { guardrail_policy, dsl };
 }
 
 function mergeRules(
