@@ -998,7 +998,7 @@ Each `context` type provides a different rendering scope:
 
 | Context | Scope | Output | Key variables |
 |---------|-------|--------|---------------|
-| `system` | Single file | `output` as-is | `system`, `dsl` |
+| `system` | Single file | `output` as-is | `system`, `dsl`, `guardrailEnforcement`\*, `bindings`\* |
 | `agent` | Per agent | `{agent.id}` in output path | `agent`, `receivableTasks`, `delegatableTasks`, `relatedArtifacts`, `relatedTools`, `relatedHandoffTypes`, `mergedBehavior`, `dsl` |
 | `task` | Per task | `{task.id}` in output path | `task`, `targetAgent`, `dsl` |
 | `artifact` | Per artifact | `{artifact.id}` in output path | `artifact`, `relatedTools`, `relatedValidations`, `producerAgents`, `consumerAgents`, `editorAgents`, `createdInWorkflows`, `dsl` |
@@ -1026,6 +1026,18 @@ Each `context` type provides a different rendering scope:
 * `relatedValidations` — validations targeting this artifact
 * `producerAgents` / `consumerAgents` / `editorAgents` — resolved agent records
 * `createdInWorkflows` — workflow phases where this artifact is written
+
+**`system` context** includes binding-aware guardrail enforcement data when `bindings` and `active_guardrail_policy` are configured:
+
+* `guardrailEnforcement` — array of enforcement entries, each with `guardrail_id`, `description`, `severity`, `action`, scoped entities (`scoped_agents`, `scoped_tasks`, `scoped_workflows`, `scoped_tools`, `scoped_artifacts`), `allow_override`, `override_requires`, `trigger` (from binding matcher type), and `escalation`
+* `bindings` — array of loaded `SoftwareBinding` objects
+
+These fields are only populated when the config specifies `bindings` and `active_guardrail_policy`. Existing templates that do not reference these fields are unaffected.
+
+**Matrix helpers** are available in `context: system` templates:
+
+* `guardrailCoverageMatrix` — generates a Guardrail Coverage Matrix table (guardrail × severity × action × scoped entities × trigger × override × escalation)
+* `taskGuardrailMatrix` — generates a Task × Guardrail cross-reference table showing which action applies to each task
 
 **`tool` context** resolves agent and artifact references:
 
