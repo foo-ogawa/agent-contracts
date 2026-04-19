@@ -309,6 +309,7 @@ Design regressions become testable.
 * **YAML safety linting** for reserved word collision detection across YAML 1.1/1.2
 * **`x-extensions` declarations** for documenting project-specific custom extension fields
 * **`resolve --expand-defaults`** to materialize all Zod schema defaults in output
+* **DSL completeness scoring** with 7 dimensions, text/JSON output, and `--threshold` CI gate
 * **JSON Schema for editor support and external tooling**
 * **CI-friendly workflow checks**
 
@@ -843,6 +844,7 @@ npx agent-contracts
 | `agent-contracts validate [path]` | Validate schema and references                         |
 | `agent-contracts lint [path]`     | Run semantic lint                                      |
 | `agent-contracts render`          | Render outputs from config                             |
+| `agent-contracts score [path]`    | Calculate DSL completeness score                       |
 | `agent-contracts generate guardrails` | Generate guardrail artifacts from bindings       |
 | `agent-contracts check`           | Run resolve → validate → lint → render --check         |
 
@@ -857,6 +859,26 @@ If `-c` / `--config` is specified, the DSL path from the config file is used.
 | `--expand-defaults` | Expand all Zod default values in output. Fields like `required_validations: []`, `tags: []`, and `can_read_artifacts: []` are written explicitly instead of being silently applied by schema defaults. |
 | `-c, --config <path>` | Path to `agent-contracts.config.yaml` |
 
+#### `score` options
+
+| Option | Description |
+|--------|-------------|
+| `--format <text\|json>` | Output format (default: `text`) |
+| `--threshold <number>` | Minimum score; exit 1 if below (for CI gates) |
+| `-c, --config <path>` | Path to `agent-contracts.config.yaml` |
+
+The score command evaluates 7 dimensions:
+
+| Dimension | What it measures | Weight |
+|-----------|-----------------|--------|
+| Artifact validation coverage | % of artifacts with non-empty `required_validations` | High |
+| Task validation coverage | % of tasks with at least one entry in `validations` | High |
+| Guardrail policy coverage | % of guardrails referenced by at least one policy rule | Medium |
+| Workflow validation integration | % of blocking validations referenced in workflow steps or tasks | High |
+| Schema completeness | % of optional fields filled (description, rationale, trigger, etc.) | Low |
+| Cross-reference bidirectionality | % of agent↔artifact, agent↔tool refs that are reciprocated | Medium |
+| Guardrail scope resolution | % of guardrail scope entries that resolve to existing entities | Medium |
+
 ### Common usage
 
 ````bash
@@ -864,6 +886,9 @@ agent-contracts resolve
 agent-contracts resolve --expand-defaults --format json
 agent-contracts validate
 agent-contracts lint --strict
+agent-contracts score
+agent-contracts score -c agent-contracts.config.yaml --threshold 70
+agent-contracts score --format json
 agent-contracts render -c agent-contracts.config.yaml
 agent-contracts render -c agent-contracts.config.yaml --check
 agent-contracts check -c agent-contracts.config.yaml --strict
@@ -1249,6 +1274,16 @@ Checks:
 #### `--strict` mode
 
 When `--strict` is passed to `lint` or `check`, warnings are treated as failures (exit code 1). This is particularly relevant for artifact-centric validation rules — empty `required_validations`, orphaned validation wiring, and incomplete task coverage are all warnings that become blocking under `--strict`.
+
+### Completeness scoring
+
+`agent-contracts score` provides a quantitative assessment of the DSL's completeness. While `validate` checks structural correctness (pass/fail) and `lint` checks semantic quality (warnings/errors), `score` produces a **numeric metric** (0–100) covering validation coverage, schema completeness, cross-reference consistency, and more.
+
+Use `--threshold` in CI to enforce a minimum quality bar:
+
+````bash
+agent-contracts score -c config.yaml --threshold 70
+````
 
 ---
 

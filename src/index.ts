@@ -49,6 +49,7 @@ export {
   RenderTargetSchema,
   ContextTypeSchema,
 } from "./config/index.js";
+export { score, type ScoreResult, type DimensionResult } from "./scorer/index.js";
 export {
   generateGuardrails,
   resolveChecks,
