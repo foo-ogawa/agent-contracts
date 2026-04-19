@@ -342,3 +342,88 @@ describe("buildGuardrailPolicyContext", () => {
     expect(ctx.dsl).toBe(dsl);
   });
 });
+
+describe("buildSystemContext with bindings", () => {
+  function createBindingLoadedBinding() {
+    return {
+      filePath: "/test/binding.yaml",
+      binding: {
+        software: "cursor",
+        version: 1 as const,
+        guardrail_impl: {
+          "no-force-push": {
+            checks: [
+              { matcher: { type: "command_regex" as const, pattern: "git push.*--force" }, message: "Force push blocked" },
+            ],
+          },
+        },
+      },
+    };
+  }
+
+  it("returns basic context when no bindings provided", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildSystemContext(dsl);
+    expect(ctx.guardrailEnforcement).toBeUndefined();
+    expect(ctx.bindings).toBeUndefined();
+  });
+
+  it("returns basic context when empty bindings provided", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildSystemContext(dsl, { loadedBindings: [] });
+    expect(ctx.guardrailEnforcement).toBeUndefined();
+    expect(ctx.bindings).toBeUndefined();
+  });
+
+  it("includes bindings in context when provided", () => {
+    const dsl = createMinimalDsl();
+    const lb = createBindingLoadedBinding();
+    const ctx = buildSystemContext(dsl, {
+      loadedBindings: [lb],
+      activeGuardrailPolicy: "default",
+    });
+    expect(ctx.bindings).toHaveLength(1);
+    expect(ctx.bindings![0].software).toBe("cursor");
+  });
+
+  it("builds guardrailEnforcement from policy + bindings", () => {
+    const dsl = createMinimalDsl();
+    const lb = createBindingLoadedBinding();
+    const ctx = buildSystemContext(dsl, {
+      loadedBindings: [lb],
+      activeGuardrailPolicy: "default",
+    });
+    expect(ctx.guardrailEnforcement).toBeDefined();
+    expect(ctx.guardrailEnforcement).toHaveLength(1);
+    const entry = ctx.guardrailEnforcement![0];
+    expect(entry.guardrail_id).toBe("no-force-push");
+    expect(entry.severity).toBe("critical");
+    expect(entry.action).toBe("block");
+    expect(entry.scoped_tools).toEqual(["lint"]);
+    expect(entry.trigger).toBe("command_regex");
+  });
+
+  it("skips guardrailEnforcement when no active policy", () => {
+    const dsl = createMinimalDsl();
+    const lb = createBindingLoadedBinding();
+    const ctx = buildSystemContext(dsl, {
+      loadedBindings: [lb],
+    });
+    expect(ctx.guardrailEnforcement).toBeUndefined();
+    expect(ctx.bindings).toHaveLength(1);
+  });
+
+  it("sets trigger to null when no binding implements the guardrail", () => {
+    const dsl = createMinimalDsl();
+    const lb = {
+      filePath: "/test/binding.yaml",
+      binding: { software: "cursor", version: 1 as const },
+    };
+    const ctx = buildSystemContext(dsl, {
+      loadedBindings: [lb],
+      activeGuardrailPolicy: "default",
+    });
+    expect(ctx.guardrailEnforcement).toHaveLength(1);
+    expect(ctx.guardrailEnforcement![0].trigger).toBeNull();
+  });
+});

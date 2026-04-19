@@ -4,6 +4,7 @@ import Handlebars from "handlebars";
 import type { Dsl } from "../schema/index.js";
 import { resolveAllOf } from "../schema/index.js";
 import type { ResolvedRenderTarget, ContextType } from "../config/types.js";
+import type { LoadedBinding } from "../config/binding-loader.js";
 import {
   buildPerAgentContext,
   buildSystemContext,
@@ -250,6 +251,63 @@ Handlebars.registerHelper(
   },
 );
 
+Handlebars.registerHelper(
+  "guardrailCoverageMatrix",
+  function (this: Record<string, unknown>): string {
+    const enforcement = this["guardrailEnforcement"] as Array<Record<string, unknown>> | undefined;
+    if (!enforcement || enforcement.length === 0) return "";
+
+    const header = "| Guardrail | Severity | Action | Agents | Tasks | Workflows | Tools | Artifacts | Trigger | Override | Escalation |";
+    const divider = "|-----------|----------|--------|--------|-------|-----------|-------|-----------|---------|----------|------------|";
+    const rows = enforcement.map((e) => {
+      const agents = (e["scoped_agents"] as string[])?.join(", ") || "—";
+      const tasks = (e["scoped_tasks"] as string[])?.join(", ") || "—";
+      const workflows = (e["scoped_workflows"] as string[])?.join(", ") || "—";
+      const tools = (e["scoped_tools"] as string[])?.join(", ") || "—";
+      const artifacts = (e["scoped_artifacts"] as string[])?.join(", ") || "—";
+      const trigger = (e["trigger"] as string) || "—";
+      const override = e["allow_override"] ? "yes" : "no";
+      const esc = e["escalation"] as Record<string, string> | null;
+      const escalation = esc ? esc["target"] : "—";
+      return `| ${e["guardrail_id"]} | ${e["severity"]} | ${e["action"]} | ${agents} | ${tasks} | ${workflows} | ${tools} | ${artifacts} | ${trigger} | ${override} | ${escalation} |`;
+    });
+
+    return [header, divider, ...rows].join("\n");
+  },
+);
+
+Handlebars.registerHelper(
+  "taskGuardrailMatrix",
+  function (this: Record<string, unknown>): string {
+    const dsl = this["dsl"] as Dsl | undefined;
+    const enforcement = this["guardrailEnforcement"] as Array<Record<string, unknown>> | undefined;
+    if (!dsl || !enforcement || enforcement.length === 0) return "";
+
+    const taskIds = Object.keys(dsl.tasks);
+    if (taskIds.length === 0) return "";
+
+    const guardrailIds = enforcement.map((e) => e["guardrail_id"] as string);
+    const header = `| Task | ${guardrailIds.join(" | ")} |`;
+    const divider = `|------|${guardrailIds.map(() => "------").join("|")}|`;
+
+    const rows = taskIds.map((taskId) => {
+      const cells = enforcement.map((e) => {
+        const scopedTasks = e["scoped_tasks"] as string[];
+        if (scopedTasks.length > 0 && !scopedTasks.includes(taskId)) return "n/a";
+        return e["action"] as string;
+      });
+      return `| ${taskId} | ${cells.join(" | ")} |`;
+    });
+
+    return [header, divider, ...rows].join("\n");
+  },
+);
+
+export interface RenderOptions {
+  loadedBindings?: LoadedBinding[];
+  activeGuardrailPolicy?: string;
+}
+
 function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> {
   const sectionMap: Record<string, Record<string, unknown>> = {
     agent: dsl.agents,
@@ -333,6 +391,7 @@ async function removeIfExists(filePath: string): Promise<void> {
 export async function renderFromConfig(
   dsl: Dsl,
   renderTargets: ResolvedRenderTarget[],
+  options?: RenderOptions,
 ): Promise<string[]> {
   const outputFiles: string[] = [];
 
@@ -341,7 +400,7 @@ export async function renderFromConfig(
     const compiled = Handlebars.compile(templateContent, { noEscape: false });
 
     if (target.context === "system") {
-      const ctx = buildSystemContext(dsl);
+      const ctx = buildSystemContext(dsl, options);
       const output = compiled(ctx);
       if (target.skip_empty && isEffectivelyEmpty(output)) {
         await removeIfExists(target.output);
@@ -405,6 +464,7 @@ function checkExpectedVsExisting(
 export async function checkDriftFromConfig(
   dsl: Dsl,
   renderTargets: ResolvedRenderTarget[],
+  options?: RenderOptions,
 ): Promise<{ hasDrift: boolean; diffs: string[] }> {
   const diffs: string[] = [];
 
@@ -413,7 +473,7 @@ export async function checkDriftFromConfig(
     const compiled = Handlebars.compile(templateContent, { noEscape: false });
 
     if (target.context === "system") {
-      const ctx = buildSystemContext(dsl);
+      const ctx = buildSystemContext(dsl, options);
       const expected = compiled(ctx);
       await checkExpectedVsExisting(expected, target.output, target.skip_empty, diffs);
     } else {

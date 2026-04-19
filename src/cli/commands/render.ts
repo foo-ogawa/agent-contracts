@@ -1,8 +1,8 @@
 import { Command } from "commander";
-import { loadConfig, ConfigLoadError } from "../../config/index.js";
+import { loadConfig, loadBindings, ConfigLoadError } from "../../config/index.js";
 import { resolve, substituteVars } from "../../resolver/index.js";
 import { validateSchema } from "../../validator/index.js";
-import { renderFromConfig, checkDriftFromConfig } from "../../renderer/index.js";
+import { renderFromConfig, checkDriftFromConfig, type RenderOptions } from "../../renderer/index.js";
 
 export const renderCommand = new Command("render")
   .description("Render resolved DSL with Handlebars templates (requires config)")
@@ -33,10 +33,20 @@ export const renderCommand = new Command("render")
           process.exit(1);
         }
 
+        let renderOptions: RenderOptions | undefined;
+        if (config.bindings.length > 0) {
+          const loadedBindings = await loadBindings(config.bindings);
+          renderOptions = {
+            loadedBindings,
+            activeGuardrailPolicy: config.activeGuardrailPolicy,
+          };
+        }
+
         if (opts.check) {
           const drift = await checkDriftFromConfig(
             schemaResult.data!,
             config.renders,
+            renderOptions,
           );
 
           if (drift.hasDrift) {
@@ -54,6 +64,7 @@ export const renderCommand = new Command("render")
           const files = await renderFromConfig(
             schemaResult.data!,
             config.renders,
+            renderOptions,
           );
 
           if (!opts.quiet) {

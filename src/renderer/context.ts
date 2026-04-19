@@ -10,9 +10,12 @@ import type {
   Policy,
   Guardrail,
   GuardrailPolicy,
+  GuardrailPolicyRule,
   System,
+  SoftwareBinding,
 } from "../schema/index.js";
 import { resolveAllOf } from "../schema/index.js";
+import type { LoadedBinding } from "../config/binding-loader.js";
 
 export interface GlobalContext {
   system: Dsl["system"];
@@ -29,9 +32,27 @@ export interface GlobalContext {
   [key: string]: unknown;
 }
 
+export interface GuardrailEnforcementEntry {
+  guardrail_id: string;
+  description: string;
+  severity: string;
+  action: string;
+  scoped_agents: string[];
+  scoped_tasks: string[];
+  scoped_workflows: string[];
+  scoped_tools: string[];
+  scoped_artifacts: string[];
+  allow_override: boolean;
+  override_requires: string[];
+  trigger: string | null;
+  escalation: { target: string; condition?: string } | null;
+}
+
 export interface SystemContext {
   system: System;
   dsl: Dsl;
+  guardrailEnforcement?: GuardrailEnforcementEntry[];
+  bindings?: SoftwareBinding[];
   [key: string]: unknown;
 }
 
@@ -156,8 +177,70 @@ export function buildGlobalContext(dsl: Dsl): GlobalContext {
   };
 }
 
-export function buildSystemContext(dsl: Dsl): SystemContext {
-  return { system: dsl.system, dsl };
+export function buildSystemContext(
+  dsl: Dsl,
+  options?: { loadedBindings?: LoadedBinding[]; activeGuardrailPolicy?: string },
+): SystemContext {
+  const ctx: SystemContext = { system: dsl.system, dsl };
+
+  if (options?.loadedBindings && options.loadedBindings.length > 0) {
+    ctx.bindings = options.loadedBindings.map((lb) => lb.binding);
+
+    const policyName = options.activeGuardrailPolicy;
+    const policy = policyName ? dsl.guardrail_policies[policyName] : undefined;
+
+    if (policy) {
+      ctx.guardrailEnforcement = buildGuardrailEnforcement(dsl, policy, options.loadedBindings);
+    }
+  }
+
+  return ctx;
+}
+
+function buildGuardrailEnforcement(
+  dsl: Dsl,
+  policy: GuardrailPolicy,
+  loadedBindings: LoadedBinding[],
+): GuardrailEnforcementEntry[] {
+  const entries: GuardrailEnforcementEntry[] = [];
+
+  const bindingTriggers = new Map<string, string>();
+  for (const lb of loadedBindings) {
+    const impl = lb.binding.guardrail_impl ?? {};
+    for (const [guardrailId, gi] of Object.entries(impl)) {
+      for (const check of gi.checks) {
+        if (check.matcher) {
+          bindingTriggers.set(guardrailId, check.matcher.type);
+        }
+      }
+    }
+  }
+
+  for (const rule of policy.rules) {
+    const guardrail = dsl.guardrails[rule.guardrail];
+    if (!guardrail) continue;
+
+    const scope = guardrail.scope ?? {};
+    entries.push({
+      guardrail_id: rule.guardrail,
+      description: guardrail.description,
+      severity: rule.severity,
+      action: rule.action,
+      scoped_agents: scope.agents ?? [],
+      scoped_tasks: scope.tasks ?? [],
+      scoped_workflows: scope.workflows ?? [],
+      scoped_tools: scope.tools ?? [],
+      scoped_artifacts: scope.artifacts ?? [],
+      allow_override: rule.allow_override,
+      override_requires: rule.override_requires ?? [],
+      trigger: bindingTriggers.get(rule.guardrail) ?? null,
+      escalation: rule.escalation
+        ? { target: rule.escalation.target, condition: rule.escalation.condition }
+        : null,
+    });
+  }
+
+  return entries;
 }
 
 export function buildTaskContext(

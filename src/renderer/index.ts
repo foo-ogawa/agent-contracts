@@ -1,6 +1,7 @@
 export {
   renderFromConfig,
   checkDriftFromConfig,
+  type RenderOptions,
 } from "./renderer.js";
 export {
   buildGlobalContext,
@@ -29,4 +30,5 @@ export {
   type PerGuardrailPolicyContext,
   type MergedBehavioralSpec,
   type DelegatableTaskView,
+  type GuardrailEnforcementEntry,
 } from "./context.js";

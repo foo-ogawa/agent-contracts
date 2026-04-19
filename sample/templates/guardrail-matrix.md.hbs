@@ -1,0 +1,42 @@
+{{!--
+  Template: guardrail-matrix.md.hbs
+  Context:  SystemContext (context: "system")
+
+  Requires binding-aware render (bindings + active_guardrail_policy in config).
+  When no bindings are loaded, guardrailEnforcement is undefined and the
+  matrix sections render as empty.
+
+  Available variables:
+    system                - System object
+    dsl                   - Full DSL object
+    guardrailEnforcement  - Array of enforcement entries (when bindings loaded)
+    bindings              - Array of SoftwareBinding objects (when bindings loaded)
+
+  Matrix helpers:
+    guardrailCoverageMatrix  - Generates full coverage matrix table
+    taskGuardrailMatrix      - Generates task × guardrail cross-reference table
+--}}
+# Guardrail Coverage — {{system.name}}
+
+{{#if guardrailEnforcement}}
+## Guardrail Coverage Matrix
+
+{{{guardrailCoverageMatrix}}}
+
+## Task × Guardrail Matrix
+
+{{{taskGuardrailMatrix}}}
+
+{{else}}
+> No guardrail enforcement data available. Configure `bindings` and `active_guardrail_policy` in your config to enable this view.
+{{/if}}
+
+{{#if (notEmpty dsl.guardrails)}}
+## Guardrail Definitions
+
+| ID | Description | Tags | Rationale |
+|----|-------------|------|-----------|
+{{#each dsl.guardrails}}
+| {{@key}} | {{this.description}} | {{join this.tags ", "}} | {{this.rationale}} |
+{{/each}}
+{{/if}}

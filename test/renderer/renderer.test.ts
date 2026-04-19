@@ -970,3 +970,130 @@ describe("linter: tool-commands", () => {
     expect(writeWarning).toBeDefined();
   });
 });
+
+describe("renderFromConfig with bindings", () => {
+  it("passes bindings to system context template", async () => {
+    const templatePath = join(outputDir, "binding-test.md.hbs");
+    const outputPath = join(outputDir, "binding-test.md");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(templatePath, "{{#if guardrailEnforcement}}HAS_ENFORCEMENT{{else}}NO_ENFORCEMENT{{/if}}", "utf8");
+
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
+      guardrails: {
+        "no-force-push": { description: "No force push", scope: { tools: ["t1"] }, tags: [] },
+      },
+      guardrail_policies: {
+        main: { rules: [{ guardrail: "no-force-push", severity: "critical", action: "block" }] },
+      },
+    });
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: templatePath, context: "system", output: outputPath },
+    ];
+
+    const loadedBindings = [{
+      filePath: "/test.yaml",
+      binding: {
+        software: "cursor",
+        version: 1 as const,
+        guardrail_impl: {
+          "no-force-push": {
+            checks: [{ matcher: { type: "command_regex" as const, pattern: "force" } }],
+          },
+        },
+      },
+    }];
+
+    const files = await renderFromConfig(dsl, targets, {
+      loadedBindings,
+      activeGuardrailPolicy: "main",
+    });
+
+    expect(files).toHaveLength(1);
+    const content = readFileSync(outputPath, "utf8");
+    expect(content).toBe("HAS_ENFORCEMENT");
+  });
+
+  it("renders without enforcement when no bindings", async () => {
+    const templatePath = join(outputDir, "no-binding-test.md.hbs");
+    const outputPath = join(outputDir, "no-binding-test.md");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(templatePath, "{{#if guardrailEnforcement}}HAS{{else}}NONE{{/if}}", "utf8");
+
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
+    });
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: templatePath, context: "system", output: outputPath },
+    ];
+
+    const files = await renderFromConfig(dsl, targets);
+    expect(files).toHaveLength(1);
+    const content = readFileSync(outputPath, "utf8");
+    expect(content).toBe("NONE");
+  });
+});
+
+describe("guardrailCoverageMatrix helper", () => {
+  it("generates markdown table from enforcement data", async () => {
+    const templatePath = join(outputDir, "matrix-test.md.hbs");
+    const outputPath = join(outputDir, "matrix-test.md");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(templatePath, "{{{guardrailCoverageMatrix}}}", "utf8");
+
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
+      guardrails: {
+        "no-force-push": { description: "No force push", scope: { tools: ["editor"] }, tags: [] },
+      },
+      guardrail_policies: {
+        main: { rules: [{ guardrail: "no-force-push", severity: "critical", action: "block" }] },
+      },
+    });
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: templatePath, context: "system", output: outputPath },
+    ];
+
+    const files = await renderFromConfig(dsl, targets, {
+      loadedBindings: [{
+        filePath: "/b.yaml",
+        binding: { software: "cursor", version: 1 as const },
+      }],
+      activeGuardrailPolicy: "main",
+    });
+
+    expect(files).toHaveLength(1);
+    const content = readFileSync(outputPath, "utf8");
+    expect(content).toContain("no-force-push");
+    expect(content).toContain("critical");
+    expect(content).toContain("block");
+    expect(content).toContain("editor");
+  });
+
+  it("returns empty string when no enforcement data", async () => {
+    const templatePath = join(outputDir, "empty-matrix.md.hbs");
+    const outputPath = join(outputDir, "empty-matrix.md");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(templatePath, "START{{{guardrailCoverageMatrix}}}END", "utf8");
+
+    const dsl = DslSchema.parse({
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["implement"] },
+    });
+
+    const targets: ResolvedRenderTarget[] = [
+      { template: templatePath, context: "system", output: outputPath },
+    ];
+
+    const files = await renderFromConfig(dsl, targets);
+    expect(files).toHaveLength(1);
+    const content = readFileSync(outputPath, "utf8");
+    expect(content).toBe("STARTEND");
+  });
+});
