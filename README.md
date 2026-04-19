@@ -1234,7 +1234,9 @@ Checks:
 Checks:
 
 * bidirectional consistency
-* validation coverage
+* validation coverage — warns when artifacts lack validations or have empty `required_validations` (fails under `--strict`)
+* artifact-required-validation wiring — verifies every entry in `artifact.required_validations` exists, targets the correct artifact, and is referenced in a workflow step or task
+* task-output-validation completeness — checks that tasks producing artifacts (via `execution_steps.produces_artifact` or agent `can_write_artifacts`) cover those artifacts' `required_validations`
 * workflow graph completeness
 * merge integrity
 * read-only write violations
@@ -1243,6 +1245,10 @@ Checks:
 * tool commands — `commands[].reads`/`commands[].writes` reference valid artifacts and align with `output_artifacts`
 * YAML safety — warns when YAML 1.1 reserved words (`on`, `yes`, `no`, `true`, `false`, etc.) are used in positions where they may be misinterpreted by non-1.2 parsers
 * naming/style issues through Spectral rules
+
+#### `--strict` mode
+
+When `--strict` is passed to `lint` or `check`, warnings are treated as failures (exit code 1). This is particularly relevant for artifact-centric validation rules — empty `required_validations`, orphaned validation wiring, and incomplete task coverage are all warnings that become blocking under `--strict`.
 
 ---
 

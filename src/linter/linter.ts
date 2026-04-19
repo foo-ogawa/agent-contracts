@@ -8,6 +8,8 @@ import { artifactOwnershipRule } from "./rules/artifact-ownership.js";
 import { toolCommandsRule } from "./rules/tool-commands.js";
 import { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.js";
 import { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
+import { artifactRequiredValidationWiringRule } from "./rules/artifact-required-validation-wiring.js";
+import { taskOutputValidationCompletenessRule } from "./rules/task-output-validation-completeness.js";
 
 const builtinRules: LintRule[] = [
   validationCoverageRule,
@@ -18,6 +20,8 @@ const builtinRules: LintRule[] = [
   toolCommandsRule,
   guardrailPolicyCoverageRule,
   yamlReservedKeySafetyRule,
+  artifactRequiredValidationWiringRule,
+  taskOutputValidationCompletenessRule,
 ];
 
 export function lint(
