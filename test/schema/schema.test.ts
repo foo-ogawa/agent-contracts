@@ -142,7 +142,7 @@ describe("schema normal cases", () => {
   });
 
   it("parses ValidationSchema for each kind enum", () => {
-    const kinds = ["schema", "mechanical", "semantic", "approval"] as const;
+    const kinds = ["schema", "mechanical", "semantic", "approval", "provenance", "traceability", "fidelity"] as const;
     for (const kind of kinds) {
       expect(() =>
         ValidationSchema.parse({ ...minimalValidValidation, kind }),

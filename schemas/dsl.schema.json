@@ -595,7 +595,10 @@
               "schema",
               "mechanical",
               "semantic",
-              "approval"
+              "approval",
+              "provenance",
+              "traceability",
+              "fidelity"
             ]
           },
           "executor_type": {

@@ -214,6 +214,35 @@ validations:
     executor: test-runner
     blocking: false
 
+  spec-semantic-review:
+    target_artifact: spec-doc
+    kind: semantic
+    executor_type: agent
+    executor: architect
+    blocking: true
+    produces_evidence: audit-report
+
+  spec-traceability-check:
+    target_artifact: spec-doc
+    kind: traceability
+    executor_type: tool
+    executor: code-editor
+    blocking: true
+
+  test-fidelity-check:
+    target_artifact: test-suite
+    kind: fidelity
+    executor_type: agent
+    executor: tester
+    blocking: true
+
+  codebase-provenance-check:
+    target_artifact: codebase
+    kind: provenance
+    executor_type: tool
+    executor: code-editor
+    blocking: true
+
 handoff_types:
   task-delegation:
     version: 1
