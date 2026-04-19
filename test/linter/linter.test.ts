@@ -8,6 +8,8 @@ import { validationCoverageRule } from "../../src/linter/rules/validation-covera
 import { toolExecutionRule } from "../../src/linter/rules/tool-execution.js";
 import { taskAgentBindingRule } from "../../src/linter/rules/task-agent-binding.js";
 import { mergeIntegrityRule } from "../../src/linter/rules/merge-integrity.js";
+import { artifactRequiredValidationWiringRule } from "../../src/linter/rules/artifact-required-validation-wiring.js";
+import { taskOutputValidationCompletenessRule } from "../../src/linter/rules/task-output-validation-completeness.js";
 
 const fixturesDir = resolve(import.meta.dirname, "../fixtures");
 
@@ -56,7 +58,10 @@ describe("validationCoverageRule", () => {
     const dsl = makeDsl({
       agents: { a1: { role_name: "R", purpose: "P" } },
       artifacts: {
-        art1: { type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
       },
       validations: {
         v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
@@ -316,6 +321,342 @@ describe("mergeIntegrityRule", () => {
     const dsl = loadDsl("minimal/agent-contracts.yaml");
     const diags = mergeIntegrityRule.run(dsl);
     expect(diags).toHaveLength(0);
+  });
+});
+
+describe("validationCoverageRule – required_validations emptiness", () => {
+  it("warns when artifact has empty required_validations (non-strict type)", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: { type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "approval", executor_type: "agent", executor: "a1", blocking: false },
+      },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    const empty = diags.filter((d) => d.message.includes("empty required_validations"));
+    expect(empty.length).toBe(1);
+    expect(empty[0].severity).toBe("warning");
+  });
+
+  it("warns when code artifact has empty required_validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: { type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    const empty = diags.filter((d) => d.message.includes("empty required_validations"));
+    expect(empty.length).toBe(1);
+    expect(empty[0].severity).toBe("warning");
+  });
+
+  it("warns when schema artifact has empty required_validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: { type: "schema", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "schema", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    const empty = diags.filter((d) => d.message.includes("empty required_validations"));
+    expect(empty.length).toBe(1);
+    expect(empty[0].severity).toBe("warning");
+  });
+
+  it("warns when config artifact has empty required_validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: { type: "config", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    const empty = diags.filter((d) => d.message.includes("empty required_validations"));
+    expect(empty.length).toBe(1);
+    expect(empty[0].severity).toBe("warning");
+  });
+
+  it("no emptiness warning when required_validations is populated", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+      workflow: { implement: { steps: [{ type: "validation", validation: "v1" }] } },
+    });
+    const diags = validationCoverageRule.run(dsl);
+    expect(diags.filter((d) => d.message.includes("empty required_validations"))).toHaveLength(0);
+  });
+});
+
+describe("artifactRequiredValidationWiringRule", () => {
+  it("errors when required_validation does not exist", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["nonexistent-val"],
+        },
+      },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    expect(diags.length).toBe(1);
+    expect(diags[0].severity).toBe("error");
+    expect(diags[0].message).toContain("does not exist");
+  });
+
+  it("errors when required_validation targets a different artifact", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+        art2: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art2", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    const mismatch = diags.filter((d) => d.message.includes("target_artifact"));
+    expect(mismatch.length).toBe(1);
+    expect(mismatch[0].severity).toBe("error");
+  });
+
+  it("warns when required_validation is not referenced in any workflow step or task", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    const unreferenced = diags.filter((d) => d.message.includes("not referenced"));
+    expect(unreferenced.length).toBe(1);
+    expect(unreferenced[0].severity).toBe("warning");
+  });
+
+  it("passes when required_validation is referenced in a workflow step", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+      workflow: { implement: { steps: [{ type: "validation", validation: "v1" }] } },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    expect(diags).toHaveLength(0);
+  });
+
+  it("passes when required_validation is referenced in task.validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: {
+          type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          validations: ["v1"],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    expect(diags).toHaveLength(0);
+  });
+
+  it("passes with no diagnostics when required_validations is empty", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P" } },
+      artifacts: {
+        art1: { type: "doc", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+    });
+    const diags = artifactRequiredValidationWiringRule.run(dsl);
+    expect(diags).toHaveLength(0);
+  });
+});
+
+describe("taskOutputValidationCompletenessRule", () => {
+  it("warns when task produces artifact with uncovered required_validations via execution_steps", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1", "v2"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+        v2: { target_artifact: "art1", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          execution_steps: [{ id: "s1", action: "code", produces_artifact: "art1" }],
+          validations: [],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = taskOutputValidationCompletenessRule.run(dsl);
+    expect(diags.length).toBe(1);
+    expect(diags[0].severity).toBe("warning");
+    expect(diags[0].message).toContain("v1");
+    expect(diags[0].message).toContain("v2");
+  });
+
+  it("warns when task produces artifact via can_write_artifacts with uncovered validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_write_artifacts: ["art1"], can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          validations: [],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = taskOutputValidationCompletenessRule.run(dsl);
+    expect(diags.length).toBe(1);
+    expect(diags[0].message).toContain("v1");
+  });
+
+  it("passes when task.validations covers all required_validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_write_artifacts: ["art1"], can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          validations: ["v1"],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = taskOutputValidationCompletenessRule.run(dsl);
+    expect(diags).toHaveLength(0);
+  });
+
+  it("passes when artifact has no required_validations", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_write_artifacts: ["art1"], can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: { type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"] },
+      },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          validations: [],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = taskOutputValidationCompletenessRule.run(dsl);
+    expect(diags).toHaveLength(0);
+  });
+
+  it("warns with partial coverage – only some required_validations are missing", () => {
+    const dsl = makeDsl({
+      agents: { a1: { role_name: "R", purpose: "P", can_return_handoffs: ["h", "r"] } },
+      artifacts: {
+        art1: {
+          type: "code", owner: "a1", producers: ["a1"], editors: ["a1"], consumers: ["a1"], states: ["draft"],
+          required_validations: ["v1", "v2"],
+        },
+      },
+      validations: {
+        v1: { target_artifact: "art1", kind: "mechanical", executor_type: "tool", executor: "t1", blocking: true },
+        v2: { target_artifact: "art1", kind: "semantic", executor_type: "agent", executor: "a1", blocking: false },
+      },
+      tools: { t1: { kind: "cli", invokable_by: ["a1"] } },
+      tasks: {
+        t1: {
+          description: "d", target_agent: "a1", allowed_from_agents: ["a1"],
+          workflow: "implement", input_artifacts: [], invocation_handoff: "h", result_handoff: "r",
+          execution_steps: [{ id: "s1", action: "code", produces_artifact: "art1" }],
+          validations: ["v1"],
+        },
+      },
+      handoff_types: { h: { version: 1, schema: {} }, r: { version: 1, schema: {} } },
+    });
+    const diags = taskOutputValidationCompletenessRule.run(dsl);
+    expect(diags.length).toBe(1);
+    expect(diags[0].message).toContain("v2");
+    expect(diags[0].message).not.toContain("v1,");
   });
 });
 

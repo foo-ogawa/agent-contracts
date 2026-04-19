@@ -17,6 +17,8 @@ export const validationCoverageRule: LintRule = {
       validationsByArtifact.get(val.target_artifact)!.add(val.kind);
     }
 
+    const strictArtifactTypes = ["code", "config", "schema"];
+
     for (const [artId, art] of Object.entries(dsl.artifacts)) {
       const kinds = validationsByArtifact.get(artId);
 
@@ -30,13 +32,23 @@ export const validationCoverageRule: LintRule = {
         continue;
       }
 
-      const mechanicalTypes = ["code", "config", "schema"];
-      if (mechanicalTypes.includes(art.type) && !kinds.has("mechanical") && !kinds.has("schema")) {
+      if (strictArtifactTypes.includes(art.type) && !kinds.has("mechanical") && !kinds.has("schema")) {
         diagnostics.push({
           ruleId: "validation-coverage",
           severity: "warning",
           path: `artifacts.${artId}`,
           message: `Artifact "${artId}" (type: ${art.type}) lacks mechanical or schema validation`,
+        });
+      }
+    }
+
+    for (const [artId, art] of Object.entries(dsl.artifacts)) {
+      if (art.required_validations.length === 0) {
+        diagnostics.push({
+          ruleId: "validation-coverage",
+          severity: "warning",
+          path: `artifacts.${artId}`,
+          message: `Artifact "${artId}" has empty required_validations`,
         });
       }
     }

@@ -9,3 +9,5 @@ export { artifactOwnershipRule } from "./rules/artifact-ownership.js";
 export { toolCommandsRule } from "./rules/tool-commands.js";
 export { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.js";
 export { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
+export { artifactRequiredValidationWiringRule } from "./rules/artifact-required-validation-wiring.js";
+export { taskOutputValidationCompletenessRule } from "./rules/task-output-validation-completeness.js";
