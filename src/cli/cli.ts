@@ -9,6 +9,7 @@ import { lintCommand } from "./commands/lint.js";
 import { renderCommand } from "./commands/render.js";
 import { checkCommand } from "./commands/check.js";
 import { generateGuardrailsCommand } from "./commands/generate-guardrails.js";
+import { scoreCommand } from "./commands/score.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8"));
@@ -26,5 +27,6 @@ program.addCommand(lintCommand);
 program.addCommand(renderCommand);
 program.addCommand(checkCommand);
 program.addCommand(generateGuardrailsCommand);
+program.addCommand(scoreCommand);
 
 program.parse();
