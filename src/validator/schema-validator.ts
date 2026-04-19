@@ -92,6 +92,54 @@ function checkCustomPropsRecursive(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+function checkXExtensionsKeys(
+  data: Record<string, unknown>,
+): DiagnosticMessage[] {
+  const extensions = data["x-extensions"];
+  if (typeof extensions !== "object" || extensions === null) return [];
+  const diagnostics: DiagnosticMessage[] = [];
+  for (const key of Object.keys(extensions as Record<string, unknown>)) {
+    if (!key.startsWith("x-")) {
+      diagnostics.push({
+        path: `x-extensions.${key}`,
+        message: `Extension key "${key}" must start with "x-" prefix.`,
+        code: "x-extension-key-prefix",
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function checkDecisionStepRoutingKey(
+  data: Record<string, unknown>,
+): DiagnosticMessage[] {
+  const workflow = data["workflow"];
+  if (typeof workflow !== "object" || workflow === null) return [];
+  const diagnostics: DiagnosticMessage[] = [];
+  for (const [wfKey, wf] of Object.entries(
+    workflow as Record<string, unknown>,
+  )) {
+    if (typeof wf !== "object" || wf === null) continue;
+    const steps = (wf as Record<string, unknown>)["steps"];
+    if (!Array.isArray(steps)) continue;
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (typeof step !== "object" || step === null) continue;
+      const s = step as Record<string, unknown>;
+      if (s["type"] !== "decision") continue;
+      if (s["routing_key"] === undefined && s["on"] === undefined) {
+        diagnostics.push({
+          path: `workflow.${wfKey}.steps[${i}]`,
+          message:
+            'Decision step requires "routing_key" (or deprecated "on"). Prefer "routing_key".',
+          code: "decision-missing-routing-key",
+        });
+      }
+    }
+  }
+  return diagnostics;
+}
+
 export function validateSchema(
   data: Record<string, unknown>,
 ): SchemaValidationResult {
@@ -109,6 +157,16 @@ export function validateSchema(
   const customPropDiagnostics = checkCustomPropsRecursive(data, DslSchema, "");
   if (customPropDiagnostics.length > 0) {
     return { success: false, diagnostics: customPropDiagnostics };
+  }
+
+  const decisionDiagnostics = checkDecisionStepRoutingKey(data);
+  if (decisionDiagnostics.length > 0) {
+    return { success: false, diagnostics: decisionDiagnostics };
+  }
+
+  const xExtDiagnostics = checkXExtensionsKeys(data);
+  if (xExtDiagnostics.length > 0) {
+    return { success: false, diagnostics: xExtDiagnostics };
   }
 
   return { success: true, data: result.data, diagnostics: [] };

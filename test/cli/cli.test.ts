@@ -55,6 +55,20 @@ describe("agent-contracts resolve", () => {
     expect(exitCode).toBe(1);
     expect(stderr).toContain("Error");
   });
+
+  it("--expand-defaults fills Zod default values", async () => {
+    const { stdout, exitCode } = await run([
+      "resolve", minimalYaml, "--expand-defaults", "--format", "json",
+    ]);
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.policies).toEqual({});
+    expect(data.guardrails).toEqual({});
+    expect(data.guardrail_policies).toEqual({});
+    const agent = data.agents?.implementer;
+    expect(agent).toBeDefined();
+    expect(agent.can_perform_validations).toEqual([]);
+  });
 });
 
 describe("agent-contracts validate", () => {

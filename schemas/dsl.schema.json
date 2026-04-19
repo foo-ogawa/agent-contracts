@@ -841,6 +841,9 @@
                     "on": {
                       "type": "string"
                     },
+                    "routing_key": {
+                      "type": "string"
+                    },
                     "branches": {
                       "type": "object",
                       "propertyNames": {
@@ -859,7 +862,6 @@
                   },
                   "required": [
                     "type",
-                    "on",
                     "branches"
                   ],
                   "additionalProperties": {}
@@ -1125,6 +1127,30 @@
         "schemas"
       ],
       "additionalProperties": {}
+    },
+    "x-extensions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "items": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "required": [

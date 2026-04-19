@@ -62,7 +62,9 @@ const WorkflowDecisionStepSchema = z
   .object({
     type: z.literal("decision"),
     description: z.string().optional(),
-    on: z.string(),
+    /** @deprecated Use `routing_key` instead. `on` is kept for backward compatibility. */
+    on: z.string().optional(),
+    routing_key: z.string().optional(),
     branches: z.record(z.string(), z.array(z.string())),
     group: z.string().optional(),
   })
