@@ -48,6 +48,7 @@ export const BindingOutputSchema = z
     mode: z.enum(["write", "patch"]).default("write"),
     group_by: z.string().optional(),
     executable: z.boolean().optional(),
+    skip_empty: z.boolean().optional(),
   })
   .passthrough()
   .refine(

@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import Handlebars from "handlebars";
 import type { Dsl } from "../schema/index.js";
@@ -318,6 +318,18 @@ async function loadTemplate(templatePath: string): Promise<string> {
   return readFile(templatePath, "utf8");
 }
 
+function isEffectivelyEmpty(output: string): boolean {
+  return output.trim().length === 0;
+}
+
+async function removeIfExists(filePath: string): Promise<void> {
+  try {
+    await unlink(filePath);
+  } catch {
+    // file does not exist — nothing to remove
+  }
+}
+
 export async function renderFromConfig(
   dsl: Dsl,
   renderTargets: ResolvedRenderTarget[],
@@ -331,6 +343,10 @@ export async function renderFromConfig(
     if (target.context === "system") {
       const ctx = buildSystemContext(dsl);
       const output = compiled(ctx);
+      if (target.skip_empty && isEffectivelyEmpty(output)) {
+        await removeIfExists(target.output);
+        continue;
+      }
       await mkdir(dirname(target.output), { recursive: true });
       await writeFile(target.output, output, "utf8");
       outputFiles.push(target.output);
@@ -343,6 +359,10 @@ export async function renderFromConfig(
         const ctx = buildEntityContext(dsl, target.context, entityId);
         const output = compiled(ctx);
         const outputPath = expandOutputPath(target.output, target.context, entityId);
+        if (target.skip_empty && isEffectivelyEmpty(output)) {
+          await removeIfExists(outputPath);
+          continue;
+        }
         await mkdir(dirname(outputPath), { recursive: true });
         await writeFile(outputPath, output, "utf8");
         outputFiles.push(outputPath);
@@ -351,6 +371,35 @@ export async function renderFromConfig(
   }
 
   return outputFiles;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await readFile(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function checkExpectedVsExisting(
+  expected: string,
+  outputPath: string,
+  skipEmpty: boolean | undefined,
+  diffs: string[],
+): Promise<void> {
+  if (skipEmpty && isEffectivelyEmpty(expected)) {
+    return fileExists(outputPath).then((exists) => {
+      if (exists) diffs.push(outputPath);
+    });
+  }
+  return readFile(outputPath, "utf8")
+    .then((existing) => {
+      if (existing !== expected) diffs.push(outputPath);
+    })
+    .catch(() => {
+      diffs.push(outputPath);
+    });
 }
 
 export async function checkDriftFromConfig(
@@ -366,12 +415,7 @@ export async function checkDriftFromConfig(
     if (target.context === "system") {
       const ctx = buildSystemContext(dsl);
       const expected = compiled(ctx);
-      try {
-        const existing = await readFile(target.output, "utf8");
-        if (existing !== expected) diffs.push(target.output);
-      } catch {
-        diffs.push(target.output);
-      }
+      await checkExpectedVsExisting(expected, target.output, target.skip_empty, diffs);
     } else {
       const section = getDslSection(dsl, target.context);
       const allIds = Object.keys(section);
@@ -381,12 +425,7 @@ export async function checkDriftFromConfig(
         const ctx = buildEntityContext(dsl, target.context, entityId);
         const expected = compiled(ctx);
         const outputPath = expandOutputPath(target.output, target.context, entityId);
-        try {
-          const existing = await readFile(outputPath, "utf8");
-          if (existing !== expected) diffs.push(outputPath);
-        } catch {
-          diffs.push(outputPath);
-        }
+        await checkExpectedVsExisting(expected, outputPath, target.skip_empty, diffs);
       }
     }
   }

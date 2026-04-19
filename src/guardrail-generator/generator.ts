@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, chmod } from "node:fs/promises";
+import { readFile, writeFile, mkdir, chmod, unlink } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import Handlebars from "handlebars";
 import type { Dsl } from "../schema/index.js";
@@ -167,6 +167,8 @@ export async function generateGuardrails(
         continue;
       }
 
+      const shouldSkipEmpty = outputDef.skip_empty === true;
+
       // If group_by is set, render once per group
       if (outputDef.group_by) {
         const groupField = outputDef.group_by;
@@ -191,6 +193,13 @@ export async function generateGuardrails(
 
           const groupTarget = resolve(targetPath, groupKey);
 
+          if (shouldSkipEmpty && output.trim().length === 0) {
+            if (!dryRun) {
+              try { await unlink(groupTarget); } catch { /* not found */ }
+            }
+            continue;
+          }
+
           if (!dryRun) {
             await mkdir(dirname(groupTarget), { recursive: true });
             await writeFile(groupTarget, output, "utf8");
@@ -204,14 +213,20 @@ export async function generateGuardrails(
         const compiled = Handlebars.compile(templateContent, { noEscape: true });
         const output = compiled(ctx);
 
-        if (!dryRun) {
-          await mkdir(dirname(targetPath), { recursive: true });
-          await writeFile(targetPath, output, "utf8");
-          if (outputDef.executable) {
-            await chmod(targetPath, 0o755);
+        if (shouldSkipEmpty && output.trim().length === 0) {
+          if (!dryRun) {
+            try { await unlink(targetPath); } catch { /* not found */ }
           }
+        } else {
+          if (!dryRun) {
+            await mkdir(dirname(targetPath), { recursive: true });
+            await writeFile(targetPath, output, "utf8");
+            if (outputDef.executable) {
+              await chmod(targetPath, 0o755);
+            }
+          }
+          outputFiles.push(targetPath);
         }
-        outputFiles.push(targetPath);
       }
     }
   }

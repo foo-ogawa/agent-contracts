@@ -297,7 +297,7 @@ Design regressions become testable.
 * **Structured handoff definitions** with formal JSON Schema and `allOf` composition
 * **Reusable schema components** via `components.schemas` and JSON Pointer `$ref`
 * **Artifact ownership and lifecycle modeling**
-* **Config-driven prompt rendering**
+* **Config-driven prompt rendering** with `skip_empty` support for conditional file generation
 * **Variable substitution** via `${vars.xxx}` in DSL values
 * **Inheritance with merge operators via `extends`**
 * **Guardrail definitions** for cross-cutting process constraints
@@ -864,6 +864,44 @@ This lets you generate static outputs for:
 * workflow docs
 
 all from the same resolved DSL.
+
+### Render target options
+
+Each entry in `renders` supports these fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `template` | string | yes | Path to Handlebars template |
+| `context` | string | yes | Context type (see below) |
+| `output` | string | yes | Output file path (supports `{<context>.id}` placeholder) |
+| `include` | string[] | no | Only render these entity IDs (not with `system`) |
+| `exclude` | string[] | no | Skip these entity IDs (not with `system`) |
+| `skip_empty` | boolean | no | When `true`, if the rendered output is empty or whitespace-only, the file is **not written**. If the file already exists, it is **deleted**. |
+
+#### `skip_empty` usage
+
+`skip_empty` is useful when a single template applies to all entities of a context type, but only some entities produce meaningful output.
+
+For example, when using `context: tool` to generate per-tool scripts, tools without an `x-script` property would produce empty files. With `skip_empty: true`, those files are simply not created:
+
+````yaml
+renders:
+  - template: ./templates/tool-script.sh.hbs
+    context: tool
+    output: ./output/scripts/{tool.id}.sh
+    skip_empty: true
+````
+
+````handlebars
+{{!-- tool-script.sh.hbs --}}
+{{#if tool.x-script}}
+{{{tool.x-script}}}
+{{/if}}
+````
+
+Tools with `x-script` get a generated script file; tools without it produce no file at all.
+
+`skip_empty` also works with `render --check` (drift detection): when the expected output is empty, the check expects the file to **not exist** and reports drift if it does.
 
 ### Available context types
 

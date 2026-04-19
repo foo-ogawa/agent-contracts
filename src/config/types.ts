@@ -28,6 +28,7 @@ export const RenderTargetSchema = z
     output: z.string(),
     include: z.array(z.string()).optional(),
     exclude: z.array(z.string()).optional(),
+    skip_empty: z.boolean().optional(),
   })
   .refine(
     (data) => !(data.include && data.exclude),
@@ -62,6 +63,7 @@ export interface ResolvedRenderTarget {
   output: string;
   include?: string[];
   exclude?: string[];
+  skip_empty?: boolean;
 }
 
 export interface ResolvedConfig {

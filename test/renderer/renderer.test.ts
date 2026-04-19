@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -336,6 +336,117 @@ describe("checkDriftFromConfig", () => {
     const result = await checkDriftFromConfig(fullDsl, targets);
     expect(result.hasDrift).toBe(true);
     expect(result.diffs.length).toBeGreaterThan(0);
+  });
+});
+
+function toolTarget(tpl: string, out: string, opts?: Partial<ResolvedRenderTarget>): ResolvedRenderTarget {
+  return { template: tpl, context: "tool", output: out, ...opts };
+}
+
+describe("skip_empty", () => {
+  const skipEmptyDir = join(import.meta.dirname, "../__skip_empty_output__");
+
+  afterAll(() => {
+    if (existsSync(skipEmptyDir)) {
+      rmSync(skipEmptyDir, { recursive: true, force: true });
+    }
+  });
+
+  const dslWithXScript = DslSchema.parse({
+    version: 1,
+    system: { id: "s", name: "S", default_workflow_order: ["w"] },
+    agents: {
+      dev: { role_name: "Dev", purpose: "P", can_execute_tools: ["with-script", "without-script"] },
+    },
+    tools: {
+      "with-script": {
+        kind: "cli",
+        invokable_by: ["dev"],
+        "x-script": "#!/usr/bin/env bash\necho hello",
+      },
+      "without-script": {
+        kind: "cli",
+        invokable_by: ["dev"],
+      },
+    },
+  });
+
+  it("does not generate file when template output is empty and skip_empty is true", async () => {
+    const targets: ResolvedRenderTarget[] = [
+      toolTarget(
+        join(templateDir, "tool-script.sh.hbs"),
+        join(skipEmptyDir, "{tool.id}.sh"),
+        { skip_empty: true },
+      ),
+    ];
+    const files = await renderFromConfig(dslWithXScript, targets);
+    expect(files).toContain(join(skipEmptyDir, "with-script.sh"));
+    expect(files).not.toContain(join(skipEmptyDir, "without-script.sh"));
+    expect(existsSync(join(skipEmptyDir, "with-script.sh"))).toBe(true);
+    expect(existsSync(join(skipEmptyDir, "without-script.sh"))).toBe(false);
+    const content = readFileSync(join(skipEmptyDir, "with-script.sh"), "utf8");
+    expect(content).toContain("echo hello");
+  });
+
+  it("deletes pre-existing file when template output becomes empty with skip_empty", async () => {
+    const staleFile = join(skipEmptyDir, "without-script.sh");
+    mkdirSync(skipEmptyDir, { recursive: true });
+    writeFileSync(staleFile, "stale content", "utf8");
+    expect(existsSync(staleFile)).toBe(true);
+
+    const targets: ResolvedRenderTarget[] = [
+      toolTarget(
+        join(templateDir, "tool-script.sh.hbs"),
+        join(skipEmptyDir, "{tool.id}.sh"),
+        { skip_empty: true },
+      ),
+    ];
+    await renderFromConfig(dslWithXScript, targets);
+    expect(existsSync(staleFile)).toBe(false);
+  });
+
+  it("still generates empty file when skip_empty is not set", async () => {
+    const noSkipDir = join(skipEmptyDir, "no-skip");
+    const targets: ResolvedRenderTarget[] = [
+      toolTarget(
+        join(templateDir, "tool-script.sh.hbs"),
+        join(noSkipDir, "{tool.id}.sh"),
+      ),
+    ];
+    const files = await renderFromConfig(dslWithXScript, targets);
+    expect(files).toContain(join(noSkipDir, "without-script.sh"));
+    expect(existsSync(join(noSkipDir, "without-script.sh"))).toBe(true);
+  });
+
+  it("checkDrift reports no drift when file is absent and output is empty with skip_empty", async () => {
+    const driftDir = join(skipEmptyDir, "drift-check");
+    const targets: ResolvedRenderTarget[] = [
+      toolTarget(
+        join(templateDir, "tool-script.sh.hbs"),
+        join(driftDir, "{tool.id}.sh"),
+        { skip_empty: true },
+      ),
+    ];
+    await renderFromConfig(dslWithXScript, targets);
+    const result = await checkDriftFromConfig(dslWithXScript, targets);
+    expect(result.hasDrift).toBe(false);
+  });
+
+  it("checkDrift reports drift when file exists but output is empty with skip_empty", async () => {
+    const driftDir = join(skipEmptyDir, "drift-stale");
+    const staleFile = join(driftDir, "without-script.sh");
+    mkdirSync(driftDir, { recursive: true });
+    writeFileSync(staleFile, "stale", "utf8");
+
+    const targets: ResolvedRenderTarget[] = [
+      toolTarget(
+        join(templateDir, "tool-script.sh.hbs"),
+        join(driftDir, "{tool.id}.sh"),
+        { skip_empty: true },
+      ),
+    ];
+    const result = await checkDriftFromConfig(dslWithXScript, targets);
+    expect(result.diffs).toContain(staleFile);
   });
 });
 
