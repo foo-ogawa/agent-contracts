@@ -8,3 +8,4 @@ coverage/
 !.env.example
 *.tsbuildinfo
 sample/output/
+.cursor/
