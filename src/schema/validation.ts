@@ -3,7 +3,7 @@ import { z } from "zod";
 export const ValidationSchema = z
   .object({
     target_artifact: z.string(),
-    kind: z.enum(["schema", "mechanical", "semantic", "approval"]),
+    kind: z.enum(["schema", "mechanical", "semantic", "approval", "provenance", "traceability", "fidelity"]),
     executor_type: z.enum(["tool", "agent"]),
     executor: z.string(),
     blocking: z.boolean(),

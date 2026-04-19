@@ -229,6 +229,31 @@ Workflow steps support additional properties:
 * `retry` (delegate steps) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
 * `routing_key` (decision steps) — the field that determines branch selection. The legacy field `on` is still accepted but deprecated due to YAML 1.1 reserved word collision
 
+### Validation
+
+A **Validation** defines a verification step for an artifact:
+
+* `target_artifact` — the artifact being verified
+* `kind` — the type of verification (see below)
+* `executor_type` — `tool` (automated) or `agent` (agent-driven)
+* `executor` — the tool or agent that runs the validation
+* `blocking` — whether the validation must pass before proceeding
+* `produces_evidence` — optional artifact produced as evidence
+
+#### Validation kinds
+
+| Kind | Purpose | Example |
+|------|---------|---------|
+| `schema` | Structural schema check | JSON Schema validation, OpenAPI lint, SQL syntax |
+| `mechanical` | Automated tool check | CLI linters, diff checks, coverage reports |
+| `semantic` | Meaning-level review | Agent-based review of spec intent, plan coherence |
+| `approval` | Human/agent sign-off gate | Architect approval before implementation |
+| `provenance` | Source derivation verification | Confirm generated artifact derives from its canonical source (e.g., manifest from API contracts) |
+| `traceability` | Cross-artifact link completeness | Verify every spec requirement reaches contracts, tests, and code |
+| `fidelity` | Semantic faithfulness to source | Confirm tests actually verify spec intent, not just structural compliance |
+
+`schema` and `mechanical` are best suited for automated checks via tools. `semantic`, `fidelity`, and `approval` are typically agent-driven. `provenance` and `traceability` can be either tool or agent-based depending on the verification complexity.
+
 ### Guardrail
 
 A **Guardrail** declares a cross-cutting constraint:
@@ -1268,6 +1293,7 @@ Checks:
 * prerequisite readability
 * artifact ownership — `produces_artifact`/`reads_artifact` in execution steps vs. artifact producers/editors/consumers
 * tool commands — `commands[].reads`/`commands[].writes` reference valid artifacts and align with `output_artifacts`
+* semantic validation phase coverage — warns when `semantic` or `fidelity` validations only appear in late workflow phases (e.g., audit) but not earlier phases (e.g., specify, plan)
 * YAML safety — warns when YAML 1.1 reserved words (`on`, `yes`, `no`, `true`, `false`, etc.) are used in positions where they may be misinterpreted by non-1.2 parsers
 * naming/style issues through Spectral rules
 
