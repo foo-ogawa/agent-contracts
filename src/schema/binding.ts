@@ -1,21 +1,28 @@
 import { z } from "zod";
 
-const CommandRegexMatcherSchema = z.object({
-  type: z.literal("command_regex"),
-  pattern: z.string(),
-});
+const CommandRegexMatcherSchema = z
+  .object({
+    type: z.literal("command_regex"),
+    pattern: z.string(),
+  })
+  .passthrough();
 
-const ContentRegexMatcherSchema = z.object({
-  type: z.literal("content_regex"),
-  pattern: z.string(),
-  file_glob: z.string().optional(),
-  exclude_glob: z.string().optional(),
-});
+const ContentRegexMatcherSchema = z
+  .object({
+    type: z.literal("content_regex"),
+    pattern: z.string(),
+    file_glob: z.string().optional(),
+    exclude_glob: z.string().optional(),
+  })
+  .passthrough();
 
-const FileGlobMatcherSchema = z.object({
-  type: z.literal("file_glob"),
-  pattern: z.string(),
-});
+const FileGlobMatcherSchema = z
+  .object({
+    type: z.literal("file_glob"),
+    pattern: z.string(),
+    exclude_glob: z.string().optional(),
+  })
+  .passthrough();
 
 export const MatcherSchema = z.discriminatedUnion("type", [
   CommandRegexMatcherSchema,
