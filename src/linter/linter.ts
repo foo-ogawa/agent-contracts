@@ -7,6 +7,7 @@ import { mergeIntegrityRule } from "./rules/merge-integrity.js";
 import { artifactOwnershipRule } from "./rules/artifact-ownership.js";
 import { toolCommandsRule } from "./rules/tool-commands.js";
 import { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.js";
+import { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
 
 const builtinRules: LintRule[] = [
   validationCoverageRule,
@@ -16,6 +17,7 @@ const builtinRules: LintRule[] = [
   artifactOwnershipRule,
   toolCommandsRule,
   guardrailPolicyCoverageRule,
+  yamlReservedKeySafetyRule,
 ];
 
 export function lint(

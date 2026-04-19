@@ -221,12 +221,13 @@ A **Workflow** defines a phase-level execution sequence:
 * `entry_conditions`
 * `trigger`
 * `external_participants` — actors/participants outside the agent system (e.g., User, external advisory)
-* ordered steps (handoff, validation, decision)
+* ordered steps (delegate, gate, validation, decision)
 
 Workflow steps support additional properties:
 
 * `group` — consecutive steps with the same group are rendered as `par` (parallel) blocks in sequence diagrams
-* `retry` (handoff steps only) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
+* `retry` (delegate steps) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
+* `routing_key` (decision steps) — the field that determines branch selection. The legacy field `on` is still accepted but deprecated due to YAML 1.1 reserved word collision
 
 ### Guardrail
 
@@ -305,6 +306,9 @@ Design regressions become testable.
 * **Software bindings** (DI) for tool-specific guardrail implementation (Cursor, Git, GitHub)
 * **Guardrail generation** from DSL + policy + bindings via `generate guardrails`
 * **Flexible file splitting** via `$ref` (replacement), `$refs` (import + deep-merge), and JSON Pointer `$ref` (in-document)
+* **YAML safety linting** for reserved word collision detection across YAML 1.1/1.2
+* **`x-extensions` declarations** for documenting project-specific custom extension fields
+* **`resolve --expand-defaults`** to materialize all Zod schema defaults in output
 * **JSON Schema for editor support and external tooling**
 * **CI-friendly workflow checks**
 
@@ -342,6 +346,16 @@ guardrails: {}
 guardrail_policies: {}
 components:
   schemas: {}
+
+# Optional: declare project-specific x-* extensions
+x-extensions:
+  x-flags:
+    type: array
+    items: string
+    description: "CLI flags for tool commands"
+  x-check-script:
+    type: string
+    description: "Path to hook check script"
 ````
 
 This makes definitions easy to merge, extend, and reference by stable identifiers.
@@ -572,6 +586,23 @@ tasks:
 `x-` prefixed custom properties work at any nesting level — including inside
 `execution_steps`, `rules`, `workflow.steps`, and other nested objects.
 
+### `x-extensions` declarations
+
+Projects can optionally declare their custom `x-*` extension fields in the DSL using `x-extensions`. This makes extensions discoverable and self-documenting:
+
+````yaml
+x-extensions:
+  x-flags:
+    type: array
+    items: string
+    description: "CLI flags for tool commands"
+  x-check-script:
+    type: string
+    description: "Path to hook check script"
+````
+
+Each key must start with `x-` (validated at schema level). The `type`, `items`, and `description` fields describe the expected shape. This declaration is informational today; future versions may validate `x-*` field values against their declared schemas.
+
 ---
 
 ## Example: Artifact definition
@@ -602,20 +633,19 @@ workflow:
       - User story or feature request received
     trigger: "User invokes /speckit.specify or asks to create a feature spec."
     steps:
-      - type: handoff
-        handoff_kind: delegation
+      - type: delegate
         task: specify-feature
         from_agent: main-architect
       - type: validation
-        validation_id: spec-semantic-review
+        validation: spec-semantic-review
       - type: decision
-        agent: main-architect
-        options:
-          - label: approve
-            next_workflow: plan
-          - label: revise
-            retry_from_step: 0
+        routing_key: evidence-gate-verdict.verdict
+        branches:
+          PASS: [plan]
+          REVISE: [specify-feature]
 ````
+
+Decision steps use `routing_key` to specify the field that determines branching. The legacy `on` field is still accepted but deprecated — see [YAML safety](#yaml-safety) below.
 
 ---
 
@@ -819,10 +849,19 @@ npx agent-contracts
 The `[path]` argument defaults to `agent-contracts.yaml` in the current directory.
 If `-c` / `--config` is specified, the DSL path from the config file is used.
 
+#### `resolve` options
+
+| Option | Description |
+|--------|-------------|
+| `--format <text\|json>` | Output format (default: `text`) |
+| `--expand-defaults` | Expand all Zod default values in output. Fields like `required_validations: []`, `tags: []`, and `can_read_artifacts: []` are written explicitly instead of being silently applied by schema defaults. |
+| `-c, --config <path>` | Path to `agent-contracts.config.yaml` |
+
 ### Common usage
 
 ````bash
 agent-contracts resolve
+agent-contracts resolve --expand-defaults --format json
 agent-contracts validate
 agent-contracts lint --strict
 agent-contracts render -c agent-contracts.config.yaml
@@ -1153,6 +1192,34 @@ Checks:
 
 Custom properties with `x-` prefix are allowed on any object in the DSL — top-level entities (agents, tasks, artifacts, …), nested objects (rules, execution steps, workflow steps, …), and the root DSL itself.
 
+### YAML safety
+
+The DSL is expressed in YAML, which introduces risks from YAML 1.1's implicit type coercion. The `yaml-reserved-key-safety` lint rule warns when reserved words appear in positions that may be misinterpreted by non-1.2 parsers.
+
+The most notable case is the `on` field in decision steps. In YAML 1.1, bare `on` as a mapping key is interpreted as boolean `true`. While `agent-contracts` uses a YAML 1.2 parser internally, DSL consumers (CI tools, editors, other parsers) may use YAML 1.1 parsers.
+
+To address this:
+
+* Decision steps now support `routing_key` as the preferred field name (replacing `on`)
+* The legacy `on` field is still accepted for backward compatibility but triggers a lint warning
+* Branch keys like `yes`, `no`, `true`, `false` also trigger warnings
+
+````yaml
+# Preferred — safe across all YAML versions
+- type: decision
+  routing_key: evidence-gate-verdict.verdict
+  branches:
+    PASS: [release]
+    FAIL: [fix-violations]
+
+# Deprecated — works but triggers yaml-reserved-key-safety warning
+- type: decision
+  on: evidence-gate-verdict.verdict
+  branches:
+    PASS: [release]
+    FAIL: [fix-violations]
+````
+
 ### Reference integrity
 
 Checks:
@@ -1174,6 +1241,7 @@ Checks:
 * prerequisite readability
 * artifact ownership — `produces_artifact`/`reads_artifact` in execution steps vs. artifact producers/editors/consumers
 * tool commands — `commands[].reads`/`commands[].writes` reference valid artifacts and align with `output_artifacts`
+* YAML safety — warns when YAML 1.1 reserved words (`on`, `yes`, `no`, `true`, `false`, etc.) are used in positions where they may be misinterpreted by non-1.2 parsers
 * naming/style issues through Spectral rules
 
 ---

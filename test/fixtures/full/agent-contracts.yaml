@@ -272,7 +272,7 @@ workflow:
       - type: validation
         validation: code-lint
       - type: decision
-        on: evidence-gate-verdict.verdict
+        routing_key: evidence-gate-verdict.verdict
         branches:
           PASS: [continue]
           BLOCK: [stop]

@@ -21,7 +21,7 @@ export {
   type Reporting,
   type SoftwareBinding,
 } from "./binding.js";
-export { ComponentsSchema, DslSchema, type Components, type Dsl } from "./dsl.js";
+export { ComponentsSchema, DslSchema, XExtensionDeclSchema, type Components, type Dsl, type XExtensionDecl } from "./dsl.js";
 export { HandoffTypeSchema, type HandoffType } from "./handoff-type.js";
 export {
   GuardrailPolicyRuleEscalationSchema,

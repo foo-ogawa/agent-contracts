@@ -23,6 +23,18 @@ export const ComponentsSchema = z
   .passthrough();
 export type Components = z.infer<typeof ComponentsSchema>;
 
+/**
+ * Declaration of project-specific `x-*` extension fields.
+ * Each key must start with `x-` and describes the expected type/shape
+ * so that tooling can validate custom extensions in the future.
+ */
+export const XExtensionDeclSchema = z.object({
+  type: z.string(),
+  items: z.string().optional(),
+  description: z.string().optional(),
+});
+export type XExtensionDecl = z.infer<typeof XExtensionDeclSchema>;
+
 export const DslSchema = z
   .object({
     version: z.literal(1),
@@ -41,6 +53,9 @@ export const DslSchema = z
       .record(z.string(), GuardrailPolicySchema)
       .default({}),
     components: ComponentsSchema.default({ schemas: {} }),
+    "x-extensions": z
+      .record(z.string(), XExtensionDeclSchema)
+      .optional(),
   })
   .passthrough();
 export type Dsl = z.infer<typeof DslSchema>;

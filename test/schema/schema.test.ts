@@ -309,7 +309,7 @@ describe("WorkflowStepSchema discriminated union", () => {
     }
   });
 
-  it("parses decision step", () => {
+  it("parses decision step with on (deprecated)", () => {
     const s = WorkflowStepSchema.parse({
       type: "decision",
       on: "field.path",
@@ -319,6 +319,33 @@ describe("WorkflowStepSchema discriminated union", () => {
     if (s.type === "decision") {
       expect(s.on).toBe("field.path");
       expect(s.branches.B).toEqual([]);
+    }
+  });
+
+  it("parses decision step with routing_key", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "decision",
+      routing_key: "field.path",
+      branches: { A: ["s1"], B: [] },
+    });
+    expect(s.type).toBe("decision");
+    if (s.type === "decision") {
+      expect(s.routing_key).toBe("field.path");
+      expect(s.branches.B).toEqual([]);
+    }
+  });
+
+  it("parses decision step with both on and routing_key", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "decision",
+      on: "legacy.path",
+      routing_key: "field.path",
+      branches: { A: ["s1"] },
+    });
+    expect(s.type).toBe("decision");
+    if (s.type === "decision") {
+      expect(s.routing_key).toBe("field.path");
+      expect(s.on).toBe("legacy.path");
     }
   });
 

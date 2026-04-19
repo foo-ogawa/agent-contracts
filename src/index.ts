@@ -1,8 +1,8 @@
 export * from "./schema/index.js";
 export { loadDsl, DslLoadError, type LoadResult } from "./loader/index.js";
-export { resolve, mergeDsl, resolveBase, MergeError, BaseResolveError, type ResolveResult } from "./resolver/index.js";
+export { resolve, mergeDsl, resolveBase, expandDefaults, MergeError, BaseResolveError, type ResolveResult } from "./resolver/index.js";
 export { validateSchema, checkReferences, validateHandoffSchemas, type SchemaValidationResult, type DiagnosticMessage, type ReferenceDiagnostic } from "./validator/index.js";
-export { lint, builtinRules, spectralLint, type LintRule, type LintDiagnostic, type Severity } from "./linter/index.js";
+export { lint, builtinRules, spectralLint, yamlReservedKeySafetyRule, type LintRule, type LintDiagnostic, type Severity } from "./linter/index.js";
 export {
   renderFromConfig,
   checkDriftFromConfig,

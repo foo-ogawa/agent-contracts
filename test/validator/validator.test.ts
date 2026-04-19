@@ -777,3 +777,91 @@ describe("checkReferences — guardrail scope and policy references", () => {
     expect(grDiags).toHaveLength(0);
   });
 });
+
+describe("validateSchema — decision step routing_key", () => {
+  it("accepts decision step with routing_key", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "decision", routing_key: "field.verdict", branches: { PASS: ["a"] } },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts decision step with deprecated on", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "decision", on: "field.verdict", branches: { PASS: ["a"] } },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects decision step with neither on nor routing_key", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: ["impl"] },
+      workflow: {
+        impl: {
+          steps: [
+            { type: "decision", branches: { PASS: ["a"] } },
+          ],
+        },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "decision-missing-routing-key")).toBe(true);
+  });
+});
+
+describe("validateSchema — x-extensions key validation", () => {
+  it("accepts x-extensions with x- prefixed keys", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      "x-extensions": {
+        "x-flags": { type: "array", items: "string", description: "CLI flags" },
+        "x-check-script": { type: "string", description: "Hook check script path" },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects x-extensions with non-x- prefixed keys", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      "x-extensions": {
+        "flags": { type: "array", description: "bad key" },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "x-extension-key-prefix")).toBe(true);
+  });
+
+  it("accepts DSL without x-extensions", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+});
