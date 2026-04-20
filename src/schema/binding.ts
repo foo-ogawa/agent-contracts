@@ -45,15 +45,23 @@ export const BindingOutputSchema = z
     target: z.string(),
     template: z.string().optional(),
     inline_template: z.string().optional(),
+    source: z.string().optional(),
     mode: z.enum(["write", "patch"]).default("write"),
+    format: z.enum(["json", "yaml", "text"]).optional(),
+    patch_strategy: z.enum(["deep_merge", "append"]).optional(),
+    array_merge_key: z.string().optional(),
     group_by: z.string().optional(),
     executable: z.boolean().optional(),
     skip_empty: z.boolean().optional(),
   })
   .passthrough()
   .refine(
-    (data) => !(data.template && data.inline_template),
-    { message: "template and inline_template are mutually exclusive" },
+    (data) => {
+      const count = [data.template, data.inline_template, data.source]
+        .filter(Boolean).length;
+      return count === 1 || count === 0;
+    },
+    { message: "Only one of template, inline_template, or source may be specified" },
   );
 export type BindingOutput = z.infer<typeof BindingOutputSchema>;
 

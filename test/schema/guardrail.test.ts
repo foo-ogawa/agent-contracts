@@ -332,6 +332,16 @@ describe("BindingOutputSchema", () => {
     expect(o.mode).toBe("patch");
   });
 
+  it("parses with source (file copy)", () => {
+    const o = BindingOutputSchema.parse({
+      target: "out.lua",
+      source: "scripts/enrich.lua",
+    });
+    expect(o.source).toBe("scripts/enrich.lua");
+    expect(o.template).toBeUndefined();
+    expect(o.inline_template).toBeUndefined();
+  });
+
   it("rejects both template AND inline_template (mutual exclusion refine)", () => {
     const r = BindingOutputSchema.safeParse({
       target: "t",
@@ -339,6 +349,79 @@ describe("BindingOutputSchema", () => {
       inline_template: "b",
     });
     expect(r.success).toBe(false);
+  });
+
+  it("rejects template AND source together", () => {
+    const r = BindingOutputSchema.safeParse({
+      target: "t",
+      template: "a",
+      source: "b",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects inline_template AND source together", () => {
+    const r = BindingOutputSchema.safeParse({
+      target: "t",
+      inline_template: "a",
+      source: "b",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects all three specified", () => {
+    const r = BindingOutputSchema.safeParse({
+      target: "t",
+      template: "a",
+      inline_template: "b",
+      source: "c",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("parses patch mode with format and patch_strategy", () => {
+    const o = BindingOutputSchema.parse({
+      target: "config.json",
+      template: "patch.json.hbs",
+      mode: "patch",
+      format: "json",
+      patch_strategy: "deep_merge",
+    });
+    expect(o.mode).toBe("patch");
+    expect(o.format).toBe("json");
+    expect(o.patch_strategy).toBe("deep_merge");
+  });
+
+  it("parses patch mode with array_merge_key", () => {
+    const o = BindingOutputSchema.parse({
+      target: "hooks.json",
+      inline_template: "[]",
+      mode: "patch",
+      format: "json",
+      patch_strategy: "deep_merge",
+      array_merge_key: "id",
+    });
+    expect(o.array_merge_key).toBe("id");
+  });
+
+  it("accepts format yaml", () => {
+    const o = BindingOutputSchema.parse({
+      target: "config.yaml",
+      inline_template: "x",
+      mode: "patch",
+      format: "yaml",
+    });
+    expect(o.format).toBe("yaml");
+  });
+
+  it("accepts format text", () => {
+    const o = BindingOutputSchema.parse({
+      target: "log.txt",
+      inline_template: "x",
+      mode: "patch",
+      format: "text",
+    });
+    expect(o.format).toBe("text");
   });
 
   it("parses with group_by and executable", () => {
