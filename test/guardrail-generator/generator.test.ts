@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LoadedBinding } from "../../src/config/binding-loader.js";
 import type { ResolvedConfig } from "../../src/config/types.js";
@@ -202,7 +202,7 @@ describe("generateGuardrails diagnostics", () => {
       expect.objectContaining({
         path: "binding.app.outputs.out",
         severity: "error",
-        message: "Output has neither template nor inline_template",
+        message: "Output has neither template, inline_template, nor source",
       }),
     );
   });
@@ -501,5 +501,339 @@ describe("generateGuardrails reporting context", () => {
     expect(result.outputFiles).toEqual([join(hooks, "report.txt")]);
     const body = await readFile(join(hooks, "report.txt"), "utf8");
     expect(body).toBe("observ emit {{id}}|false|4242");
+  });
+});
+
+describe("generateGuardrails source copy (issue #14)", () => {
+  it("copies source file to target without template processing", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+    const sourceContent = "#!/usr/bin/env lua\nprint('hello {{not a template}}')\n";
+    await mkdir(join(configDir, "scripts"), { recursive: true });
+    await writeFile(join(configDir, "scripts/enrich.lua"), sourceContent);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/enrich.lua",
+        source: "scripts/enrich.lua",
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "enrich.lua")]);
+    const body = await readFile(join(hooks, "enrich.lua"), "utf8");
+    expect(body).toBe(sourceContent);
+  });
+
+  it("applies executable flag on source copy", async () => {
+    const configDir = await newConfigDir();
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+    await writeFile(join(configDir, "run.sh"), "#!/bin/sh\necho ok\n");
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/run.sh",
+        source: "run.sh",
+        executable: true,
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    const out = result.outputFiles[0]!;
+    const s = await stat(out);
+    if (process.platform !== "win32") {
+      expect(s.mode & 0o111).toBeTruthy();
+    }
+  });
+
+  it("returns error when source file not found", async () => {
+    const configDir = await newConfigDir();
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/missing.lua",
+        source: "nonexistent.lua",
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        path: "binding.app.outputs.out",
+        severity: "error",
+        message: expect.stringContaining("Source file not found"),
+      }),
+    );
+  });
+
+  it("dryRun with source returns path but does not copy", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+    await writeFile(join(configDir, "src.txt"), "data");
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/dst.txt",
+        source: "src.txt",
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+      dryRun: true,
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "dst.txt")]);
+    await expect(readFile(join(hooks, "dst.txt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+});
+
+describe("generateGuardrails patch merge (issue #13)", () => {
+  it("deep-merges JSON when mode is patch", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(
+      join(hooks, "config.json"),
+      JSON.stringify({ existing: true, nested: { a: 1 } }, null, 2),
+    );
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/config.json",
+        mode: "patch" as const,
+        format: "json" as const,
+        patch_strategy: "deep_merge" as const,
+        inline_template: '{"nested":{"b":2},"added":true}',
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "config.json")]);
+    const body = JSON.parse(await readFile(join(hooks, "config.json"), "utf8"));
+    expect(body.existing).toBe(true);
+    expect(body.nested).toEqual({ a: 1, b: 2 });
+    expect(body.added).toBe(true);
+  });
+
+  it("writes directly when target does not exist (first patch)", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/new.json",
+        mode: "patch" as const,
+        format: "json" as const,
+        inline_template: '{"key":"value"}',
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "new.json")]);
+    const body = JSON.parse(await readFile(join(hooks, "new.json"), "utf8"));
+    expect(body).toEqual({ key: "value" });
+  });
+
+  it("deduplicates arrays by array_merge_key (idempotent)", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(
+      join(hooks, "hooks.json"),
+      JSON.stringify({
+        hooks: [
+          { id: "hook-a", command: "old" },
+          { id: "hook-b", command: "keep" },
+        ],
+      }, null, 2),
+    );
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/hooks.json",
+        mode: "patch" as const,
+        format: "json" as const,
+        patch_strategy: "deep_merge" as const,
+        array_merge_key: "id",
+        inline_template: '{"hooks":[{"id":"hook-a","command":"updated"},{"id":"hook-c","command":"new"}]}',
+      },
+    });
+
+    await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    const body = JSON.parse(await readFile(join(hooks, "hooks.json"), "utf8"));
+    expect(body.hooks).toHaveLength(3);
+    expect(body.hooks[0]).toEqual({ id: "hook-a", command: "updated" });
+    expect(body.hooks[1]).toEqual({ id: "hook-b", command: "keep" });
+    expect(body.hooks[2]).toEqual({ id: "hook-c", command: "new" });
+
+    // Run again — idempotent
+    const result2 = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+    expect(result2.diagnostics.filter((d) => d.severity === "error")).toHaveLength(0);
+    const body2 = JSON.parse(await readFile(join(hooks, "hooks.json"), "utf8"));
+    expect(body2.hooks).toHaveLength(3);
+  });
+
+  it("deep-merges YAML when format is yaml", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(join(hooks, "config.yaml"), "existing: true\nnested:\n  a: 1\n");
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/config.yaml",
+        mode: "patch" as const,
+        format: "yaml" as const,
+        patch_strategy: "deep_merge" as const,
+        inline_template: "nested:\n  b: 2\nadded: true\n",
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "config.yaml")]);
+    const raw = await readFile(join(hooks, "config.yaml"), "utf8");
+    const parsed = await import("yaml").then((m) => m.parse(raw));
+    expect(parsed.existing).toBe(true);
+    expect(parsed.nested).toEqual({ a: 1, b: 2 });
+    expect(parsed.added).toBe(true);
+  });
+
+  it("appends text when format is text", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(join(hooks, "log.txt"), "line1\n");
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/log.txt",
+        mode: "patch" as const,
+        format: "text" as const,
+        inline_template: "line2\n",
+      },
+    });
+
+    const result = await generateGuardrails({
+      dsl,
+      config,
+      loadedBindings: [lb],
+    });
+
+    expect(result.outputFiles).toEqual([join(hooks, "log.txt")]);
+    const body = await readFile(join(hooks, "log.txt"), "utf8");
+    expect(body).toBe("line1\nline2\n");
+  });
+
+  it("appends arrays without merge key", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(
+      join(hooks, "items.json"),
+      JSON.stringify({ items: ["a", "b"] }, null, 2),
+    );
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/items.json",
+        mode: "patch" as const,
+        format: "json" as const,
+        patch_strategy: "deep_merge" as const,
+        inline_template: '{"items":["c","d"]}',
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = JSON.parse(await readFile(join(hooks, "items.json"), "utf8"));
+    expect(body.items).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("defaults format to json when not specified in patch mode", async () => {
+    const configDir = await newConfigDir();
+    const hooks = join(configDir, "hooks");
+    const dsl = minimalDsl();
+    const config = baseResolvedConfig(configDir);
+
+    await mkdir(hooks, { recursive: true });
+    await writeFile(join(hooks, "f.json"), '{"a":1}');
+
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/f.json",
+        mode: "patch" as const,
+        inline_template: '{"b":2}',
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = JSON.parse(await readFile(join(hooks, "f.json"), "utf8"));
+    expect(body).toEqual({ a: 1, b: 2 });
   });
 });

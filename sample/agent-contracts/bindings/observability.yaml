@@ -23,6 +23,19 @@ outputs:
           - guardrail.check.matched
           - guardrail.outcome
 
+  policy-bundle:
+    target: "{cursor_root}/guardrails/policy.json"
+    mode: patch
+    format: json
+    patch_strategy: deep_merge
+    inline_template: |
+      {"meta":{"observability_binding":true}}
+
+  enrichment-script:
+    target: "{observability_root}/enrich.lua"
+    source: "scripts/enrich.lua"
+    executable: true
+
 reporting:
   commands:
     on_started: >-

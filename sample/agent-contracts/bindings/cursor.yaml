@@ -79,6 +79,9 @@ outputs:
 
   policy-bundle:
     target: "{cursor_root}/guardrails/policy.json"
-    mode: write
+    mode: patch
+    format: json
+    patch_strategy: deep_merge
+    array_merge_key: guardrail_id
     inline_template: |
-      {{json resolved_checks}}
+      {"checks":{{json resolved_checks}},"meta":{"cursor_binding":true}}

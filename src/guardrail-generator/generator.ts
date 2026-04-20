@@ -1,9 +1,11 @@
-import { readFile, writeFile, mkdir, chmod, unlink } from "node:fs/promises";
+import { readFile, writeFile, mkdir, chmod, unlink, copyFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import Handlebars from "handlebars";
+import YAML from "yaml";
 import type { Dsl } from "../schema/index.js";
 import type { ResolvedConfig } from "../config/types.js";
 import type { LoadedBinding } from "../config/binding-loader.js";
+import type { BindingOutput } from "../schema/index.js";
 import type {
   GuardrailGenerationContext,
   GenerateResult,
@@ -30,6 +32,105 @@ Handlebars.registerHelper(
     return new Handlebars.SafeString(result);
   },
 );
+
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return typeof val === "object" && val !== null && !Array.isArray(val);
+}
+
+function deepMergeArrays(
+  existing: unknown[],
+  incoming: unknown[],
+  mergeKey?: string,
+): unknown[] {
+  if (!mergeKey) return [...existing, ...incoming];
+  const merged = [...existing];
+  for (const item of incoming) {
+    if (isPlainObject(item) && mergeKey in item) {
+      const idx = merged.findIndex(
+        (e) => isPlainObject(e) && e[mergeKey] === item[mergeKey],
+      );
+      if (idx >= 0) {
+        merged[idx] = item;
+      } else {
+        merged.push(item);
+      }
+    } else {
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+function deepMerge(
+  existing: unknown,
+  incoming: unknown,
+  arrayMergeKey?: string,
+): unknown {
+  if (Array.isArray(existing) && Array.isArray(incoming)) {
+    return deepMergeArrays(existing, incoming, arrayMergeKey);
+  }
+  if (isPlainObject(existing) && isPlainObject(incoming)) {
+    const result: Record<string, unknown> = { ...existing };
+    for (const [key, val] of Object.entries(incoming)) {
+      result[key] = key in result
+        ? deepMerge(result[key], val, arrayMergeKey)
+        : val;
+    }
+    return result;
+  }
+  return incoming;
+}
+
+function parseContent(raw: string, format: string): unknown {
+  if (format === "json") return JSON.parse(raw);
+  if (format === "yaml") return YAML.parse(raw);
+  throw new Error(`Unsupported format for patch parsing: ${format}`);
+}
+
+function serializeContent(data: unknown, format: string): string {
+  if (format === "json") return JSON.stringify(data, null, 2) + "\n";
+  if (format === "yaml") return YAML.stringify(data);
+  throw new Error(`Unsupported format for patch serialization: ${format}`);
+}
+
+async function applyPatch(
+  targetPath: string,
+  patchContent: string,
+  outputDef: BindingOutput,
+): Promise<string> {
+  const format = outputDef.format ?? "json";
+
+  if (format === "text") {
+    let existing = "";
+    try {
+      existing = await readFile(targetPath, "utf8");
+    } catch { /* first write */ }
+    return existing + patchContent;
+  }
+
+  const patchData = parseContent(patchContent, format);
+
+  let existingData: unknown;
+  try {
+    const existingRaw = await readFile(targetPath, "utf8");
+    existingData = parseContent(existingRaw, format);
+  } catch {
+    return serializeContent(patchData, format);
+  }
+
+  const strategy = outputDef.patch_strategy ?? "deep_merge";
+  if (strategy === "append" && Array.isArray(existingData)) {
+    const merged = deepMergeArrays(
+      existingData,
+      Array.isArray(patchData) ? patchData : [patchData],
+      outputDef.array_merge_key,
+    );
+    return serializeContent(merged, format);
+  }
+
+  const merged = deepMerge(existingData, patchData, outputDef.array_merge_key);
+  return serializeContent(merged, format);
+}
 
 export interface GenerateGuardrailsOptions {
   dsl: Dsl;
@@ -133,13 +234,39 @@ export async function generateGuardrails(
 
       const targetPath = resolve(config.configDir, pathResult.resolved);
 
-      // Get template content
+      // --- source: file copy without template processing ---
+      if (outputDef.source) {
+        const sourcePath = resolve(config.configDir, outputDef.source);
+        if (!dryRun) {
+          try {
+            await mkdir(dirname(targetPath), { recursive: true });
+            await copyFile(sourcePath, targetPath);
+            if (outputDef.executable) {
+              await chmod(targetPath, 0o755);
+            }
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code === "ENOENT") {
+              diagnostics.push({
+                path: `binding.${binding.software}.outputs.${outputId}`,
+                message: `Source file not found: ${sourcePath}`,
+                severity: "error",
+              });
+              continue;
+            }
+            throw err;
+          }
+        }
+        outputFiles.push(targetPath);
+        continue;
+      }
+
+      // --- template / inline_template rendering ---
       let templateContent: string;
       if (outputDef.inline_template) {
         templateContent = outputDef.inline_template;
       } else if (outputDef.template) {
         if (outputDef.template.startsWith("builtin:")) {
-          // Builtin templates are not yet implemented — skip with info
           diagnostics.push({
             path: `binding.${binding.software}.outputs.${outputId}`,
             message: `Builtin template "${outputDef.template}" is not yet implemented — skipping`,
@@ -161,13 +288,14 @@ export async function generateGuardrails(
       } else {
         diagnostics.push({
           path: `binding.${binding.software}.outputs.${outputId}`,
-          message: "Output has neither template nor inline_template",
+          message: "Output has neither template, inline_template, nor source",
           severity: "error",
         });
         continue;
       }
 
       const shouldSkipEmpty = outputDef.skip_empty === true;
+      const isPatch = outputDef.mode === "patch";
 
       // If group_by is set, render once per group
       if (outputDef.group_by) {
@@ -189,16 +317,20 @@ export async function generateGuardrails(
             current_group: groupKey,
           };
           const compiled = Handlebars.compile(templateContent, { noEscape: true });
-          const output = compiled(groupCtx);
+          const rendered = compiled(groupCtx);
 
           const groupTarget = resolve(targetPath, groupKey);
 
-          if (shouldSkipEmpty && output.trim().length === 0) {
+          if (shouldSkipEmpty && rendered.trim().length === 0) {
             if (!dryRun) {
               try { await unlink(groupTarget); } catch { /* not found */ }
             }
             continue;
           }
+
+          const output = isPatch && !dryRun
+            ? await applyPatch(groupTarget, rendered, outputDef)
+            : rendered;
 
           if (!dryRun) {
             await mkdir(dirname(groupTarget), { recursive: true });
@@ -211,13 +343,17 @@ export async function generateGuardrails(
         }
       } else {
         const compiled = Handlebars.compile(templateContent, { noEscape: true });
-        const output = compiled(ctx);
+        const rendered = compiled(ctx);
 
-        if (shouldSkipEmpty && output.trim().length === 0) {
+        if (shouldSkipEmpty && rendered.trim().length === 0) {
           if (!dryRun) {
             try { await unlink(targetPath); } catch { /* not found */ }
           }
         } else {
+          const output = isPatch && !dryRun
+            ? await applyPatch(targetPath, rendered, outputDef)
+            : rendered;
+
           if (!dryRun) {
             await mkdir(dirname(targetPath), { recursive: true });
             await writeFile(targetPath, output, "utf8");
