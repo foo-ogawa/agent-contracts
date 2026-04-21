@@ -1,0 +1,15 @@
+# {{system.name}}
+
+{{#if bindings}}
+## Bindings
+
+{{#each bindings}}
+- {{this.software}}
+{{/each}}
+{{/if}}
+
+## Agents
+
+{{#each dsl.agents}}
+- {{@key}}: {{this.purpose}}
+{{/each}}

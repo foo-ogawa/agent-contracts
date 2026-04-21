@@ -1,0 +1,53 @@
+version: 1
+system:
+  id: bindings-test-system
+  name: Bindings Test System
+  default_workflow_order:
+    - implement
+
+agents:
+  implementer:
+    role_name: Implementer
+    purpose: Implements features
+    can_read_artifacts:
+      - codebase
+    can_write_artifacts:
+      - codebase
+    can_invoke_agents:
+      - implementer
+    can_return_handoffs:
+      - task-delegation
+
+tasks:
+  implement-feature:
+    description: Implement a feature
+    target_agent: implementer
+    allowed_from_agents:
+      - implementer
+    workflow: implement
+    input_artifacts:
+      - codebase
+    invocation_handoff: task-delegation
+    result_handoff: task-delegation
+
+artifacts:
+  codebase:
+    type: code
+    owner: implementer
+    producers:
+      - implementer
+    editors:
+      - implementer
+    consumers:
+      - implementer
+    states:
+      - draft
+
+tools: {}
+validations: {}
+handoff_types:
+  task-delegation:
+    version: 1
+    schema: {}
+workflow: {}
+policies: {}
