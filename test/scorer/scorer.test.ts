@@ -33,10 +33,10 @@ describe("score()", () => {
     expect(result.overall).toBeLessThanOrEqual(100);
   });
 
-  it("returns 7 dimensions", () => {
+  it("returns 8 dimensions", () => {
     const dsl = makeDsl({});
     const result = score(dsl);
-    expect(result.dimensions).toHaveLength(7);
+    expect(result.dimensions).toHaveLength(8);
   });
 
   it("returns 100 for an empty DSL (no entities = nothing to check)", () => {
@@ -341,7 +341,7 @@ describe("score on full fixture", () => {
     const result = score(dsl);
     expect(result.overall).toBeGreaterThanOrEqual(0);
     expect(result.overall).toBeLessThanOrEqual(100);
-    expect(result.dimensions).toHaveLength(7);
+    expect(result.dimensions).toHaveLength(8);
     for (const d of result.dimensions) {
       expect(d.percent).toBeGreaterThanOrEqual(0);
       expect(d.percent).toBeLessThanOrEqual(100);

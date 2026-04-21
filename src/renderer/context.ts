@@ -56,9 +56,20 @@ export interface SystemContext {
   [key: string]: unknown;
 }
 
+export interface EntityGuardrailEntry {
+  guardrail_id: string;
+  description: string;
+  rationale?: string;
+  tags: string[];
+  source: "entity" | "scope" | "both";
+  severity?: string;
+  action?: string;
+}
+
 export interface PerTaskContext {
   task: Task & { id: string };
   targetAgent: (Agent & { id: string }) | null;
+  relatedGuardrails: EntityGuardrailEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -71,6 +82,7 @@ export interface PerArtifactContext {
   consumerAgents: Dsl["agents"];
   editorAgents: Dsl["agents"];
   createdInWorkflows: string[];
+  relatedGuardrails: EntityGuardrailEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -80,6 +92,7 @@ export interface PerToolContext {
   invokableAgents: Dsl["agents"];
   inputArtifactDetails: Dsl["artifacts"];
   outputArtifactDetails: Dsl["artifacts"];
+  relatedGuardrails: EntityGuardrailEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -157,6 +170,7 @@ export interface PerAgentContext {
   relatedTools: Dsl["tools"];
   relatedHandoffTypes: Dsl["handoff_types"];
   mergedBehavior: MergedBehavioralSpec;
+  relatedGuardrails: EntityGuardrailEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -243,6 +257,63 @@ function buildGuardrailEnforcement(
   return entries;
 }
 
+type EntityType = "agents" | "tasks" | "tools" | "artifacts";
+
+export function resolveEffectiveGuardrails(
+  dsl: Dsl,
+  entityType: EntityType,
+  entityId: string,
+): EntityGuardrailEntry[] {
+  const entityDef = (dsl[entityType] as Record<string, { guardrails?: string[] }>)[entityId];
+  const entitySide = new Set<string>(entityDef?.guardrails ?? []);
+
+  const scopeSide = new Set<string>();
+  for (const [guardrailId, guardrail] of Object.entries(dsl.guardrails)) {
+    const scopeIds = guardrail.scope[entityType] as string[] | undefined;
+    if (scopeIds?.includes(entityId)) {
+      scopeSide.add(guardrailId);
+    }
+  }
+
+  const allIds = new Set([...entitySide, ...scopeSide]);
+
+  const activePolicyRules = new Map<string, { severity: string; action: string }>();
+  for (const policy of Object.values(dsl.guardrail_policies)) {
+    for (const rule of policy.rules) {
+      if (!activePolicyRules.has(rule.guardrail)) {
+        activePolicyRules.set(rule.guardrail, {
+          severity: rule.severity,
+          action: rule.action,
+        });
+      }
+    }
+  }
+
+  const entries: EntityGuardrailEntry[] = [];
+  for (const id of allIds) {
+    const guardrail = dsl.guardrails[id];
+    if (!guardrail) continue;
+
+    const fromEntity = entitySide.has(id);
+    const fromScope = scopeSide.has(id);
+    const source: "entity" | "scope" | "both" =
+      fromEntity && fromScope ? "both" : fromEntity ? "entity" : "scope";
+
+    const policyInfo = activePolicyRules.get(id);
+    entries.push({
+      guardrail_id: id,
+      description: guardrail.description,
+      rationale: guardrail.rationale,
+      tags: guardrail.tags,
+      source,
+      severity: policyInfo?.severity,
+      action: policyInfo?.action,
+    });
+  }
+
+  return entries;
+}
+
 export function buildTaskContext(
   dsl: Dsl,
   taskId: string,
@@ -253,7 +324,8 @@ export function buildTaskContext(
   const targetAgent = agentDef
     ? ({ ...agentDef, id: taskDef.target_agent } as Agent & { id: string })
     : null;
-  return { task, targetAgent, dsl };
+  const relatedGuardrails = resolveEffectiveGuardrails(dsl, "tasks", taskId);
+  return { task, targetAgent, relatedGuardrails, dsl };
 }
 
 export function buildArtifactContext(
@@ -311,6 +383,8 @@ export function buildArtifactContext(
     }
   }
 
+  const relatedGuardrails = resolveEffectiveGuardrails(dsl, "artifacts", artifactId);
+
   return {
     artifact,
     relatedTools,
@@ -319,6 +393,7 @@ export function buildArtifactContext(
     consumerAgents,
     editorAgents,
     createdInWorkflows,
+    relatedGuardrails,
     dsl,
   };
 }
@@ -343,11 +418,14 @@ export function buildToolContext(
     return result;
   };
 
+  const relatedGuardrails = resolveEffectiveGuardrails(dsl, "tools", toolId);
+
   return {
     tool,
     invokableAgents,
     inputArtifactDetails: pickArtifacts(toolDef.input_artifacts),
     outputArtifactDetails: pickArtifacts(toolDef.output_artifacts),
+    relatedGuardrails,
     dsl,
   };
 }
@@ -660,6 +738,7 @@ export function buildPerAgentContext(
 
   const rawReceivableTasks = receivableTasks.map(({ id: _id, ...rest }) => rest as Task);
   const mergedBehavior = mergeBehavioralSpec(agent, rawReceivableTasks);
+  const relatedGuardrails = resolveEffectiveGuardrails(dsl, "agents", agentId);
 
   return {
     agent,
@@ -670,6 +749,7 @@ export function buildPerAgentContext(
     relatedTools,
     relatedHandoffTypes,
     mergedBehavior,
+    relatedGuardrails,
     dsl,
   };
 }

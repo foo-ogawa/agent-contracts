@@ -31,4 +31,6 @@ export {
   type MergedBehavioralSpec,
   type DelegatableTaskView,
   type GuardrailEnforcementEntry,
+  type EntityGuardrailEntry,
+  resolveEffectiveGuardrails,
 } from "./context.js";

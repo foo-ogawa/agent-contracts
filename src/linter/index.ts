@@ -11,3 +11,4 @@ export { guardrailPolicyCoverageRule } from "./rules/guardrail-policy-coverage.j
 export { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
 export { artifactRequiredValidationWiringRule } from "./rules/artifact-required-validation-wiring.js";
 export { taskOutputValidationCompletenessRule } from "./rules/task-output-validation-completeness.js";
+export { entityGuardrailUndefinedRule, entityNoGuardrailsRule, guardrailOrphanedRule } from "./rules/entity-guardrail-binding.js";

@@ -11,6 +11,11 @@ import { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
 import { artifactRequiredValidationWiringRule } from "./rules/artifact-required-validation-wiring.js";
 import { taskOutputValidationCompletenessRule } from "./rules/task-output-validation-completeness.js";
 import { semanticValidationPhaseCoverageRule } from "./rules/semantic-validation-phase-coverage.js";
+import {
+  entityGuardrailUndefinedRule,
+  entityNoGuardrailsRule,
+  guardrailOrphanedRule,
+} from "./rules/entity-guardrail-binding.js";
 
 const builtinRules: LintRule[] = [
   validationCoverageRule,
@@ -24,6 +29,9 @@ const builtinRules: LintRule[] = [
   artifactRequiredValidationWiringRule,
   taskOutputValidationCompletenessRule,
   semanticValidationPhaseCoverageRule,
+  entityGuardrailUndefinedRule,
+  entityNoGuardrailsRule,
+  guardrailOrphanedRule,
 ];
 
 export function lint(

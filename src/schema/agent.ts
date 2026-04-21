@@ -52,6 +52,7 @@ export const AgentSchema = z
     anti_patterns: z.array(z.string()).optional(),
     escalation_criteria: z.array(EscalationCriterionSchema).optional(),
     prerequisites: z.array(PrerequisiteSchema).optional(),
+    guardrails: z.array(z.string()).optional(),
   })
   .passthrough();
 export type Agent = z.infer<typeof AgentSchema>;

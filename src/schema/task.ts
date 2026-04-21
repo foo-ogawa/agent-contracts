@@ -36,6 +36,7 @@ export const TaskSchema = z
     anti_patterns: z.array(z.string()).optional(),
     escalation_criteria: z.array(EscalationCriterionSchema).optional(),
     validations: z.array(z.string()).default([]),
+    guardrails: z.array(z.string()).optional(),
   })
   .passthrough();
 export type Task = z.infer<typeof TaskSchema>;
