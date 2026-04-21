@@ -49,12 +49,26 @@ cursor outputs  git outputs   observability outputs
 
 ### 1.3 Relationship to Existing Entities
 
-The current DSL has related but distinct concepts:
+Guardrails use a **bidirectional binding model** to associate with entities:
+
+1. **Scope-side binding** (`guardrails[].scope`): The guardrail declares which entities it applies to. This is the cross-cutting direction — one guardrail targets many entities.
+2. **Entity-side binding** (`entity.guardrails[]`): Each entity (agent, task, tool, artifact) declares which guardrails apply to it. This is the entity-specific direction — one entity opts into guardrails relevant to its context.
+
+The effective guardrails for an entity are the **union** of both directions, deduplicated. Each resolved entry tracks its `source`: `"entity"` (declared on the entity), `"scope"` (declared on the guardrail), or `"both"`.
+
+```
+effectiveGuardrails(entityType, entityId) =
+  Set(entity.guardrails ?? [])
+  ∪ Set(guardrailId for each guardrail where scope.{entityType} includes entityId)
+```
+
+Resolved guardrails are injected into each entity's `PerEntityContext.relatedGuardrails` so templates can render them into prompts.
 
 | Existing | Purpose | Guardrail Relation |
 |----------|---------|-------------------|
-| `agents[].rules` | Per-agent behavioral rules (mandatory/recommended/optional) | Guardrails are cross-cutting constraints, not agent-scoped |
+| `agents[].rules` | Per-agent behavioral rules (mandatory/recommended/optional) | Guardrails are cross-cutting constraints that also support entity-side binding |
 | `agents[].constraints` | Free-text agent constraints | Guardrails are machine-evaluable |
+| `agents[].guardrails` | Entity-side guardrail binding | References guardrail IDs; merged with scope-side bindings |
 | `policies` | Validation requirement policies (`when` → `requires_validations`) | `guardrail_policies` is a separate section for enforcement strategies |
 | `validations` | Artifact validation definitions | Validations check artifact quality; guardrails enforce process constraints |
 
@@ -140,6 +154,37 @@ guardrails:
     rationale: "Constitution X requires local verification before CI push"
     tags: [quality, testing]
 ```
+
+### 2.1.1 Entity-side `guardrails` field
+
+All entity schemas (`AgentSchema`, `TaskSchema`, `ToolSchema`, `ArtifactSchema`) accept an optional `guardrails: string[]` field referencing guardrail IDs. This is the entity-side of the bidirectional binding model described in §1.3.
+
+```typescript
+// Added to AgentSchema, TaskSchema, ToolSchema, ArtifactSchema:
+guardrails: z.array(z.string()).optional()
+```
+
+Enforcement parameters (severity, action) remain in `guardrail_policies` — the entity only declares **what** applies. `WorkflowSchema` is excluded — workflows orchestrate steps rather than being direct guardrail targets.
+
+```yaml
+agents:
+  implementer:
+    guardrails: [english-only-code, test-before-commit]
+
+tasks:
+  implement-feature:
+    guardrails: [ddl-workflow]
+
+tools:
+  code-editor:
+    guardrails: [no-force-push, no-rebase]
+
+artifacts:
+  codebase:
+    guardrails: [english-only-code, protect-generated-files]
+```
+
+For each entity, the effective guardrails are the union of `entity.guardrails[]` (entity-side) and `guardrails[].scope.{entity_type}` (scope-side), deduplicated. Each resolved entry tracks its `source`: `"entity"`, `"scope"`, or `"both"`. Results are injected into `PerEntityContext.relatedGuardrails` as `EntityGuardrailEntry[]`.
 
 ### 2.2 `guardrail_policies:` Section
 

@@ -16,6 +16,8 @@
     relatedArtifacts     - Record<id, Artifact> this agent can read/write
     relatedTools         - Record<id, Tool> this agent can execute
     relatedHandoffTypes  - Record<kind, HandoffType> related to this agent's tasks/handoffs
+    relatedGuardrails    - Array of EntityGuardrailEntry (guardrail_id, description,
+                           rationale, tags, source, severity, action)
     mergedBehavior       - Agent + all receivable tasks merged:
                            responsibilities, constraints, rules, anti_patterns,
                            escalation_criteria, execution_steps, completion_criteria
@@ -124,6 +126,16 @@
 
 {{#each relatedTools}}
 - **{{@key}}** ({{this.kind}}): {{this.description}}
+{{/each}}
+{{/if}}
+
+{{#if relatedGuardrails.length}}
+## Guardrails
+
+| ID | Description | Severity | Action |
+|----|-------------|----------|--------|
+{{#each relatedGuardrails}}
+| {{this.guardrail_id}} | {{this.description}} | {{this.severity}} | {{this.action}} |
 {{/each}}
 {{/if}}
 

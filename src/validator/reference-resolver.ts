@@ -244,6 +244,38 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
     }
   }
 
+  for (const [id, agent] of Object.entries(dsl.agents)) {
+    if (agent.guardrails) {
+      for (const ref of agent.guardrails) {
+        checkExists(ref, guardrailIds, "guardrails", `agents.${id}.guardrails`, "entity-guardrail-ref-not-found");
+      }
+    }
+  }
+
+  for (const [id, task] of Object.entries(dsl.tasks)) {
+    if (task.guardrails) {
+      for (const ref of task.guardrails) {
+        checkExists(ref, guardrailIds, "guardrails", `tasks.${id}.guardrails`, "entity-guardrail-ref-not-found");
+      }
+    }
+  }
+
+  for (const [id, tool] of Object.entries(dsl.tools)) {
+    if (tool.guardrails) {
+      for (const ref of tool.guardrails) {
+        checkExists(ref, guardrailIds, "guardrails", `tools.${id}.guardrails`, "entity-guardrail-ref-not-found");
+      }
+    }
+  }
+
+  for (const [id, art] of Object.entries(dsl.artifacts)) {
+    if (art.guardrails) {
+      for (const ref of art.guardrails) {
+        checkExists(ref, guardrailIds, "guardrails", `artifacts.${id}.guardrails`, "entity-guardrail-ref-not-found");
+      }
+    }
+  }
+
   for (const [id, guardrail] of Object.entries(dsl.guardrails)) {
     if (guardrail.scope.agents) {
       for (const ref of guardrail.scope.agents) {

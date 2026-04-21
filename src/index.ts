@@ -32,6 +32,8 @@ export {
   type PerGuardrailPolicyContext,
   type MergedBehavioralSpec,
   type DelegatableTaskView,
+  type EntityGuardrailEntry,
+  resolveEffectiveGuardrails,
 } from "./renderer/index.js";
 export {
   loadBindings,

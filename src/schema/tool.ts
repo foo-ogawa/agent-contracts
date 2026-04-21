@@ -18,6 +18,7 @@ export const ToolSchema = z
     invokable_by: z.array(z.string()),
     side_effects: z.array(z.string()).default([]),
     commands: z.array(CommandSchema).default([]),
+    guardrails: z.array(z.string()).optional(),
   })
   .passthrough();
 export type Tool = z.infer<typeof ToolSchema>;

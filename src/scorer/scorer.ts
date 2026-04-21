@@ -270,6 +270,60 @@ function crossReferenceBidirectionality(dsl: Dsl): DimensionResult {
   };
 }
 
+function entityGuardrailCoverage(dsl: Dsl): DimensionResult {
+  const entitySections: Array<{ name: string; entities: Record<string, { guardrails?: string[] }> }> = [
+    { name: "agents", entities: dsl.agents },
+    { name: "tasks", entities: dsl.tasks },
+    { name: "tools", entities: dsl.tools },
+    { name: "artifacts", entities: dsl.artifacts },
+  ];
+
+  const scopeBindings: Record<string, Set<string>> = {
+    agents: new Set<string>(),
+    tasks: new Set<string>(),
+    tools: new Set<string>(),
+    artifacts: new Set<string>(),
+  };
+  for (const guardrail of Object.values(dsl.guardrails)) {
+    for (const key of Object.keys(scopeBindings)) {
+      const ids = guardrail.scope[key as keyof typeof guardrail.scope] as string[] | undefined;
+      if (ids) {
+        for (const id of ids) scopeBindings[key].add(id);
+      }
+    }
+  }
+
+  let total = 0;
+  let covered = 0;
+  const missing: string[] = [];
+
+  for (const { name, entities } of entitySections) {
+    for (const [entityId, entity] of Object.entries(entities)) {
+      total++;
+      const hasEntitySide = (entity.guardrails ?? []).length > 0;
+      const hasScopeSide = scopeBindings[name].has(entityId);
+      if (hasEntitySide || hasScopeSide) {
+        covered++;
+      } else {
+        missing.push(`${name}.${entityId}`);
+      }
+    }
+  }
+
+  return {
+    id: "entity-guardrail-coverage",
+    label: "Entity guardrail coverage",
+    score: covered,
+    total,
+    percent: pct(covered, total),
+    weight: 1,
+    recommendations:
+      missing.length > 0
+        ? [`${missing.length} entities without guardrails: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? `, ... (${missing.length - 5} more)` : ""}`]
+        : [],
+  };
+}
+
 function guardrailScopeResolution(dsl: Dsl): DimensionResult {
   let totalRefs = 0;
   let resolvedRefs = 0;
@@ -324,6 +378,7 @@ export function score(dsl: Dsl): ScoreResult {
     schemaCompleteness(dsl),
     crossReferenceBidirectionality(dsl),
     guardrailScopeResolution(dsl),
+    entityGuardrailCoverage(dsl),
   ];
 
   const totalWeight = dimensions.reduce((s, d) => s + d.weight, 0);

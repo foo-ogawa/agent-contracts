@@ -207,6 +207,12 @@
               ],
               "additionalProperties": {}
             }
+          },
+          "guardrails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -404,6 +410,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "guardrails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -470,6 +482,12 @@
           },
           "visibility": {
             "type": "string"
+          },
+          "guardrails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -563,6 +581,12 @@
                 "writes"
               ],
               "additionalProperties": false
+            }
+          },
+          "guardrails": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },
