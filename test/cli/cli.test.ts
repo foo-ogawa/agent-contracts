@@ -11,6 +11,8 @@ const outputDir = join(import.meta.dirname, "../__cli_output__");
 
 const minimalYaml = join(fixturesDir, "minimal/agent-contracts.yaml");
 const minimalConfig = join(fixturesDir, "minimal/agent-contracts.config.yaml");
+const bindingsConfig = join(fixturesDir, "with-bindings/agent-contracts.config.yaml");
+const bindingsOutputDir = join(import.meta.dirname, "../__cli_output_bindings__");
 
 async function run(
   args: string[],
@@ -32,6 +34,7 @@ async function run(
 
 afterAll(() => {
   if (existsSync(outputDir)) rmSync(outputDir, { recursive: true, force: true });
+  if (existsSync(bindingsOutputDir)) rmSync(bindingsOutputDir, { recursive: true, force: true });
 });
 
 describe("agent-contracts resolve", () => {
@@ -163,6 +166,13 @@ describe("agent-contracts check", () => {
   it("runs full pipeline and exits 0 on valid fixture", async () => {
     await run(["render", "--config", minimalConfig]);
     const { exitCode, stdout } = await run(["check", "--config", minimalConfig]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("passed");
+  });
+
+  it("passes with bindings (no false drift)", async () => {
+    await run(["render", "--config", bindingsConfig]);
+    const { exitCode, stdout } = await run(["check", "--config", bindingsConfig]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain("passed");
   });

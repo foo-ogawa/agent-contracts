@@ -1,0 +1,9 @@
+dsl: ./agent-contracts.yaml
+
+bindings:
+  - ./binding.yaml
+
+renders:
+  - template: ./overview-with-bindings.md.hbs
+    context: system
+    output: ../../__cli_output_bindings__/overview.md
