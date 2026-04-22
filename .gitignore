@@ -9,3 +9,9 @@ coverage/
 *.tsbuildinfo
 sample/output/
 .cursor/
+.aidev/
+.aidev.json
+.observ/
+agent-contracts/
+agent-contracts.config.yaml
+setup-aidev.sh
