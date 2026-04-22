@@ -8,6 +8,8 @@ coverage/
 !.env.example
 *.tsbuildinfo
 sample/output/
+test/__cli_output__/
+test/__cli_output_bindings__/
 .cursor/
 .aidev/
 .aidev.json
