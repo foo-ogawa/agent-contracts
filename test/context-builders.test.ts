@@ -13,6 +13,7 @@ import {
   buildGuardrailContext,
   buildGuardrailPolicyContext,
 } from "../src/renderer/context.js";
+import type { EntityValidationEntry } from "../src/renderer/context.js";
 
 function createMinimalDsl(): Dsl {
   return {
@@ -161,6 +162,38 @@ describe("buildPerAgentContext", () => {
     expect(ctx.receivableTasks.length).toBeGreaterThan(0);
     expect(ctx.relatedTools).toHaveProperty("lint");
   });
+
+  it("includes relatedValidations from can_perform_validations as full entries", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildPerAgentContext(dsl, { ...dsl.agents["reviewer"], id: "reviewer" });
+    expect(ctx.relatedValidations).toHaveLength(1);
+    const entry: EntityValidationEntry = ctx.relatedValidations[0];
+    expect(entry.validation_id).toBe("code-review");
+    expect(entry.kind).toBe("semantic");
+    expect(entry.target_artifact).toBe("source-code");
+    expect(entry.executor_type).toBe("agent");
+    expect(entry.blocking).toBe(true);
+  });
+
+  it("has empty relatedValidations when agent runs no validations", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildPerAgentContext(dsl, { ...dsl.agents["dev"], id: "dev" });
+    expect(ctx.relatedValidations).toHaveLength(0);
+  });
+
+  it("skips non-existent validation IDs in can_perform_validations", () => {
+    const dsl = createMinimalDsl();
+    const patched = {
+      ...dsl,
+      agents: {
+        ...dsl.agents,
+        dev: { ...dsl.agents.dev, can_perform_validations: ["not-a-validation", "code-review"] },
+      },
+    };
+    const ctx = buildPerAgentContext(patched, { ...patched.agents["dev"], id: "dev" });
+    expect(ctx.relatedValidations).toHaveLength(1);
+    expect(ctx.relatedValidations[0].validation_id).toBe("code-review");
+  });
 });
 
 describe("buildTaskContext", () => {
@@ -172,6 +205,40 @@ describe("buildTaskContext", () => {
     expect(ctx.targetAgent).not.toBeNull();
     expect(ctx.targetAgent!.id).toBe("dev");
     expect(ctx.dsl).toBe(dsl);
+  });
+
+  it("includes relatedValidations from task.validations as full entries", () => {
+    const dsl = createMinimalDsl();
+    const extended = {
+      ...dsl,
+      validations: {
+        ...dsl.validations,
+        "pre-merge-check": {
+          target_artifact: "source-code",
+          kind: "mechanical" as const,
+          executor_type: "agent" as const,
+          executor: "dev",
+          blocking: false,
+        },
+      },
+      tasks: {
+        ...dsl.tasks,
+        "implement-feature": {
+          ...dsl.tasks["implement-feature"],
+          validations: ["code-review", "pre-merge-check", "missing-val"],
+        },
+      },
+    };
+    const ctx = buildTaskContext(extended, "implement-feature");
+    expect(ctx.relatedValidations).toHaveLength(2);
+    const ids = ctx.relatedValidations.map((e) => e.validation_id).sort();
+    expect(ids).toEqual(["code-review", "pre-merge-check"]);
+  });
+
+  it("has empty relatedValidations when task lists no validations", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildTaskContext(dsl, "review-code");
+    expect(ctx.relatedValidations).toHaveLength(0);
   });
 });
 
@@ -232,6 +299,34 @@ describe("buildToolContext", () => {
     const ctx = buildToolContext(dsl, "lint");
     expect(ctx.inputArtifactDetails).toHaveProperty("source-code");
     expect(Object.keys(ctx.outputArtifactDetails)).toHaveLength(0);
+  });
+
+  it("includes relatedValidations for validations where this tool is executor", () => {
+    const dsl = createMinimalDsl();
+    const extended = {
+      ...dsl,
+      validations: {
+        ...dsl.validations,
+        "static-lint-gate": {
+          target_artifact: "source-code",
+          kind: "mechanical" as const,
+          executor_type: "tool" as const,
+          executor: "lint",
+          blocking: true,
+        },
+      },
+    };
+    const ctx = buildToolContext(extended, "lint");
+    expect(ctx.relatedValidations).toHaveLength(1);
+    expect(ctx.relatedValidations[0].validation_id).toBe("static-lint-gate");
+    expect(ctx.relatedValidations[0].executor_type).toBe("tool");
+    expect(ctx.relatedValidations[0].target_artifact).toBe("source-code");
+  });
+
+  it("has empty relatedValidations when no tool-executor validations reference the tool", () => {
+    const dsl = createMinimalDsl();
+    const ctx = buildToolContext(dsl, "lint");
+    expect(ctx.relatedValidations).toHaveLength(0);
   });
 });
 

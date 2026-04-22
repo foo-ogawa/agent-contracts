@@ -16,6 +16,7 @@ import {
   entityNoGuardrailsRule,
   guardrailOrphanedRule,
 } from "./rules/entity-guardrail-binding.js";
+import { validationExecutorNoContextRule } from "./rules/validation-executor-no-context.js";
 
 const builtinRules: LintRule[] = [
   validationCoverageRule,
@@ -32,6 +33,7 @@ const builtinRules: LintRule[] = [
   entityGuardrailUndefinedRule,
   entityNoGuardrailsRule,
   guardrailOrphanedRule,
+  validationExecutorNoContextRule,
 ];
 
 export function lint(

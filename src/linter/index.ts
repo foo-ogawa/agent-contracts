@@ -12,3 +12,4 @@ export { yamlReservedKeySafetyRule } from "./rules/yaml-reserved-key-safety.js";
 export { artifactRequiredValidationWiringRule } from "./rules/artifact-required-validation-wiring.js";
 export { taskOutputValidationCompletenessRule } from "./rules/task-output-validation-completeness.js";
 export { entityGuardrailUndefinedRule, entityNoGuardrailsRule, guardrailOrphanedRule } from "./rules/entity-guardrail-binding.js";
+export { validationExecutorNoContextRule } from "./rules/validation-executor-no-context.js";
