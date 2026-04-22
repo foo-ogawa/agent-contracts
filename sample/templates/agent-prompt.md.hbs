@@ -18,6 +18,10 @@
     relatedHandoffTypes  - Record<kind, HandoffType> related to this agent's tasks/handoffs
     relatedGuardrails    - Array of EntityGuardrailEntry (guardrail_id, description,
                            rationale, tags, source, severity, action)
+    relatedValidations   - Array of EntityValidationEntry (validation_id, kind,
+                           target_artifact, executor_type, blocking, produces_evidence)
+                           for validations this agent is configured to run
+                           (from can_perform_validations)
     mergedBehavior       - Agent + all receivable tasks merged:
                            responsibilities, constraints, rules, anti_patterns,
                            escalation_criteria, execution_steps, completion_criteria
@@ -136,6 +140,16 @@
 |----|-------------|----------|--------|
 {{#each relatedGuardrails}}
 | {{this.guardrail_id}} | {{this.description}} | {{this.severity}} | {{this.action}} |
+{{/each}}
+{{/if}}
+
+{{#if relatedValidations.length}}
+## Validations You Execute
+
+| ID | Kind | Target Artifact | Blocking |
+|----|------|-----------------|----------|
+{{#each relatedValidations}}
+| {{this.validation_id}} | {{this.kind}} | {{this.target_artifact}} | {{this.blocking}} |
 {{/each}}
 {{/if}}
 

@@ -16,10 +16,12 @@ const bindingsOutputDir = join(import.meta.dirname, "../__cli_output_bindings__"
 
 async function run(
   args: string[],
+  options?: { cwd?: string },
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const { stdout, stderr } = await exec("node", [cliPath, ...args], {
       timeout: 10000,
+      cwd: options?.cwd,
     });
     return { stdout, stderr, exitCode: 0 };
   } catch (err) {
@@ -156,7 +158,8 @@ describe("agent-contracts render", () => {
   });
 
   it("exits 1 without config", async () => {
-    const { exitCode, stderr } = await run(["render"]);
+    const { tmpdir } = await import("node:os");
+    const { exitCode, stderr } = await run(["render"], { cwd: tmpdir() });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not found");
   });

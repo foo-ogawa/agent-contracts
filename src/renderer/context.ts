@@ -10,7 +10,6 @@ import type {
   Policy,
   Guardrail,
   GuardrailPolicy,
-  GuardrailPolicyRule,
   System,
   SoftwareBinding,
 } from "../schema/index.js";
@@ -66,10 +65,20 @@ export interface EntityGuardrailEntry {
   action?: string;
 }
 
+export interface EntityValidationEntry {
+  validation_id: string;
+  kind: string;
+  target_artifact: string;
+  executor_type: string;
+  blocking: boolean;
+  produces_evidence?: string;
+}
+
 export interface PerTaskContext {
   task: Task & { id: string };
   targetAgent: (Agent & { id: string }) | null;
   relatedGuardrails: EntityGuardrailEntry[];
+  relatedValidations: EntityValidationEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -93,6 +102,7 @@ export interface PerToolContext {
   inputArtifactDetails: Dsl["artifacts"];
   outputArtifactDetails: Dsl["artifacts"];
   relatedGuardrails: EntityGuardrailEntry[];
+  relatedValidations: EntityValidationEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -171,6 +181,7 @@ export interface PerAgentContext {
   relatedHandoffTypes: Dsl["handoff_types"];
   mergedBehavior: MergedBehavioralSpec;
   relatedGuardrails: EntityGuardrailEntry[];
+  relatedValidations: EntityValidationEntry[];
   dsl: Dsl;
   [key: string]: unknown;
 }
@@ -314,6 +325,61 @@ export function resolveEffectiveGuardrails(
   return entries;
 }
 
+function validationToEntityEntry(
+  validationId: string,
+  validation: Validation,
+): EntityValidationEntry {
+  return {
+    validation_id: validationId,
+    kind: validation.kind,
+    target_artifact: validation.target_artifact,
+    executor_type: validation.executor_type,
+    blocking: validation.blocking,
+    produces_evidence: validation.produces_evidence,
+  };
+}
+
+/**
+ * Resolves validation IDs for an agent, task, or tool into full entries for prompts.
+ * For tools, includes validations where executor_type is "tool" and executor is the tool id.
+ */
+export function resolveEntityValidations(
+  dsl: Dsl,
+  entityType: "agents" | "tasks" | "tools",
+  entityId: string,
+): EntityValidationEntry[] {
+  if (entityType === "agents") {
+    const agent = dsl.agents[entityId];
+    if (!agent) return [];
+    const entries: EntityValidationEntry[] = [];
+    for (const vid of agent.can_perform_validations ?? []) {
+      const v = dsl.validations[vid];
+      if (v) entries.push(validationToEntityEntry(vid, v));
+    }
+    return entries;
+  }
+
+  if (entityType === "tasks") {
+    const task = dsl.tasks[entityId];
+    if (!task) return [];
+    const entries: EntityValidationEntry[] = [];
+    for (const vid of task.validations ?? []) {
+      const v = dsl.validations[vid];
+      if (v) entries.push(validationToEntityEntry(vid, v));
+    }
+    return entries;
+  }
+
+  const entries: EntityValidationEntry[] = [];
+  for (const [vid, v] of Object.entries(dsl.validations)) {
+    if (v.executor_type === "tool" && v.executor === entityId) {
+      entries.push(validationToEntityEntry(vid, v));
+    }
+  }
+  entries.sort((a, b) => a.validation_id.localeCompare(b.validation_id));
+  return entries;
+}
+
 export function buildTaskContext(
   dsl: Dsl,
   taskId: string,
@@ -325,7 +391,8 @@ export function buildTaskContext(
     ? ({ ...agentDef, id: taskDef.target_agent } as Agent & { id: string })
     : null;
   const relatedGuardrails = resolveEffectiveGuardrails(dsl, "tasks", taskId);
-  return { task, targetAgent, relatedGuardrails, dsl };
+  const relatedValidations = resolveEntityValidations(dsl, "tasks", taskId);
+  return { task, targetAgent, relatedGuardrails, relatedValidations, dsl };
 }
 
 export function buildArtifactContext(
@@ -419,6 +486,7 @@ export function buildToolContext(
   };
 
   const relatedGuardrails = resolveEffectiveGuardrails(dsl, "tools", toolId);
+  const relatedValidations = resolveEntityValidations(dsl, "tools", toolId);
 
   return {
     tool,
@@ -426,6 +494,7 @@ export function buildToolContext(
     inputArtifactDetails: pickArtifacts(toolDef.input_artifacts),
     outputArtifactDetails: pickArtifacts(toolDef.output_artifacts),
     relatedGuardrails,
+    relatedValidations,
     dsl,
   };
 }
@@ -739,6 +808,7 @@ export function buildPerAgentContext(
   const rawReceivableTasks = receivableTasks.map(({ id: _id, ...rest }) => rest as Task);
   const mergedBehavior = mergeBehavioralSpec(agent, rawReceivableTasks);
   const relatedGuardrails = resolveEffectiveGuardrails(dsl, "agents", agentId);
+  const relatedValidations = resolveEntityValidations(dsl, "agents", agentId);
 
   return {
     agent,
@@ -750,6 +820,7 @@ export function buildPerAgentContext(
     relatedHandoffTypes,
     mergedBehavior,
     relatedGuardrails,
+    relatedValidations,
     dsl,
   };
 }

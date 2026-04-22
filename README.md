@@ -999,10 +999,10 @@ Each `context` type provides a different rendering scope:
 | Context | Scope | Output | Key variables |
 |---------|-------|--------|---------------|
 | `system` | Single file | `output` as-is | `system`, `dsl`, `guardrailEnforcement`\*, `bindings`\* |
-| `agent` | Per agent | `{agent.id}` in output path | `agent`, `receivableTasks`, `delegatableTasks`, `relatedArtifacts`, `relatedTools`, `relatedHandoffTypes`, `mergedBehavior`, `dsl` |
-| `task` | Per task | `{task.id}` in output path | `task`, `targetAgent`, `dsl` |
-| `artifact` | Per artifact | `{artifact.id}` in output path | `artifact`, `relatedTools`, `relatedValidations`, `producerAgents`, `consumerAgents`, `editorAgents`, `createdInWorkflows`, `dsl` |
-| `tool` | Per tool | `{tool.id}` in output path | `tool`, `invokableAgents`, `inputArtifactDetails`, `outputArtifactDetails`, `dsl` |
+| `agent` | Per agent | `{agent.id}` in output path | `agent`, `receivableTasks`, `delegatableTasks`, `relatedArtifacts`, `relatedTools`, `relatedHandoffTypes`, `mergedBehavior`, `relatedGuardrails`, `relatedValidations`, `dsl` |
+| `task` | Per task | `{task.id}` in output path | `task`, `targetAgent`, `relatedGuardrails`, `relatedValidations`, `dsl` |
+| `artifact` | Per artifact | `{artifact.id}` in output path | `artifact`, `relatedTools`, `relatedValidations`, `relatedGuardrails`, `producerAgents`, `consumerAgents`, `editorAgents`, `createdInWorkflows`, `dsl` |
+| `tool` | Per tool | `{tool.id}` in output path | `tool`, `invokableAgents`, `inputArtifactDetails`, `outputArtifactDetails`, `relatedGuardrails`, `relatedValidations`, `dsl` |
 | `validation` | Per validation | `{validation.id}` in output path | `validation`, `dsl` |
 | `handoff_type` | Per handoff type | `{handoff_type.id}` in output path | `handoff_type`, `relatedTasks`, `dsl` |
 | `workflow` | Per workflow phase | `{workflow.id}` in output path | `workflow`, `relatedAgents`, `relatedTasks`, `relatedTools`, `relatedArtifacts`, `relatedValidations`, `dsl` |
@@ -1027,6 +1027,23 @@ Each `context` type provides a different rendering scope:
 * `producerAgents` / `consumerAgents` / `editorAgents` — resolved agent records
 * `createdInWorkflows` — workflow phases where this artifact is written
 
+**`agent` context** provides merged behavioral specs and cross-references:
+
+* `relatedGuardrails` — guardrails bound via `agent.guardrails[]` or guardrail `scope.agents[]`, merged and deduplicated
+* `relatedValidations` — validations from `agent.can_perform_validations`, resolved into full entries (kind, target_artifact, executor_type, blocking)
+
+**`task` context** provides execution details:
+
+* `relatedGuardrails` — guardrails bound via `task.guardrails[]` or guardrail `scope.tasks[]`
+* `relatedValidations` — validations from `task.validations[]`, resolved into full entries
+
+**`tool` context** provides invocation and artifact details:
+
+* `relatedGuardrails` — guardrails bound via `tool.guardrails[]` or guardrail `scope.tools[]`
+* `relatedValidations` — validations where `executor_type` is `"tool"` and `executor` matches this tool ID
+* `invokableAgents` — agents listed in `invokable_by`
+* `inputArtifactDetails` / `outputArtifactDetails` — resolved artifact records
+
 **`system` context** includes binding-aware guardrail enforcement data when `bindings` and `active_guardrail_policy` are configured:
 
 * `guardrailEnforcement` — array of enforcement entries, each with `guardrail_id`, `description`, `severity`, `action`, scoped entities (`scoped_agents`, `scoped_tasks`, `scoped_workflows`, `scoped_tools`, `scoped_artifacts`), `allow_override`, `override_requires`, `trigger` (from binding matcher type), and `escalation`
@@ -1038,11 +1055,6 @@ These fields are only populated when the config specifies `bindings` and `active
 
 * `guardrailCoverageMatrix` — generates a Guardrail Coverage Matrix table (guardrail × severity × action × scoped entities × trigger × override × escalation)
 * `taskGuardrailMatrix` — generates a Task × Guardrail cross-reference table showing which action applies to each task
-
-**`tool` context** resolves agent and artifact references:
-
-* `invokableAgents` — agents listed in `invokable_by`
-* `inputArtifactDetails` / `outputArtifactDetails` — resolved artifact records
 
 ### Handlebars helpers
 
@@ -1306,6 +1318,7 @@ Checks:
 * artifact ownership — `produces_artifact`/`reads_artifact` in execution steps vs. artifact producers/editors/consumers
 * tool commands — `commands[].reads`/`commands[].writes` reference valid artifacts and align with `output_artifacts`
 * semantic validation phase coverage — warns when `semantic` or `fidelity` validations only appear in late workflow phases (e.g., audit) but not earlier phases (e.g., specify, plan)
+* validation executor context wiring — warns when a validation's executor (agent or tool) exists in the DSL but the validation is not surfaced in the executor's prompt context
 * YAML safety — warns when YAML 1.1 reserved words (`on`, `yes`, `no`, `true`, `false`, etc.) are used in positions where they may be misinterpreted by non-1.2 parsers
 * naming/style issues through Spectral rules
 

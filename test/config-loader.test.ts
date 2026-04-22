@@ -37,8 +37,14 @@ describe("loadConfig", () => {
   });
 
   it("returns null for default non-existent config", async () => {
-    const result = await loadConfig(undefined);
-    expect(result).toBeNull();
+    const originalCwd = process.cwd();
+    process.chdir(TEMP_DIR);
+    try {
+      const result = await loadConfig(undefined);
+      expect(result).toBeNull();
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
   it("rejects invalid YAML", async () => {

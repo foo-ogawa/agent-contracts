@@ -33,7 +33,9 @@ export {
   type MergedBehavioralSpec,
   type DelegatableTaskView,
   type EntityGuardrailEntry,
+  type EntityValidationEntry,
   resolveEffectiveGuardrails,
+  resolveEntityValidations,
 } from "./renderer/index.js";
 export {
   loadBindings,

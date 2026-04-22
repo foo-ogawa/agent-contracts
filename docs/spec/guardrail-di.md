@@ -64,6 +64,8 @@ effectiveGuardrails(entityType, entityId) =
 
 Resolved guardrails are injected into each entity's `PerEntityContext.relatedGuardrails` so templates can render them into prompts.
 
+A parallel mechanism exists for validations: `resolveEntityValidations()` resolves validation IDs into `EntityValidationEntry[]` and injects them as `relatedValidations` into agent, task, and tool contexts. See Issue #19.
+
 | Existing | Purpose | Guardrail Relation |
 |----------|---------|-------------------|
 | `agents[].rules` | Per-agent behavioral rules (mandatory/recommended/optional) | Guardrails are cross-cutting constraints that also support entity-side binding |
@@ -803,6 +805,7 @@ binding.guardrail_impl.{key} → guardrails
 | `binding-template-conflict` | error | A binding output specifies both `template` and `inline_template` |
 | `binding-template-missing` | error | A binding output specifies neither `template` nor `inline_template` |
 | `binding-path-unresolved` | error | A binding target uses `{name}` but config has no matching `paths` entry |
+| `validation-executor-no-context` | warning | A validation executor (agent/tool) exists in the DSL but the validation is not listed in the executor's prompt context |
 
 ### 7.2 Existing Rule Interactions
 

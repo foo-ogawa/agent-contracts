@@ -32,5 +32,7 @@ export {
   type DelegatableTaskView,
   type GuardrailEnforcementEntry,
   type EntityGuardrailEntry,
+  type EntityValidationEntry,
   resolveEffectiveGuardrails,
+  resolveEntityValidations,
 } from "./context.js";
