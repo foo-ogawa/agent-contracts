@@ -165,15 +165,15 @@ function* enumerateEntitiesByType(
   nodeType: ScopeNodeType,
 ): Generator<{ path: string; obj: Record<string, unknown> }> {
   switch (nodeType) {
-    case "Root":
+    case "root":
       yield { path: "", obj: data };
       return;
-    case "System": {
+    case "system": {
       const sys = data["system"];
       if (isRecord(sys)) yield { path: "system", obj: sys };
       return;
     }
-    case "Agent": {
+    case "agent": {
       const agents = data["agents"];
       if (!isRecord(agents)) return;
       for (const [id, a] of Object.entries(agents)) {
@@ -181,7 +181,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Rule": {
+    case "rule": {
       const agents = data["agents"];
       if (!isRecord(agents)) return;
       for (const [aid, a] of Object.entries(agents)) {
@@ -195,7 +195,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "EscalationCriterion": {
+    case "escalation_criterion": {
       const agents = data["agents"];
       if (!isRecord(agents)) return;
       for (const [aid, a] of Object.entries(agents)) {
@@ -214,7 +214,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Prerequisite": {
+    case "prerequisite": {
       const agents = data["agents"];
       if (!isRecord(agents)) return;
       for (const [aid, a] of Object.entries(agents)) {
@@ -230,7 +230,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Task": {
+    case "task": {
       const tasks = data["tasks"];
       if (!isRecord(tasks)) return;
       for (const [id, t] of Object.entries(tasks)) {
@@ -238,7 +238,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "ExecutionStep": {
+    case "execution_step": {
       const tasks = data["tasks"];
       if (!isRecord(tasks)) return;
       for (const [tid, t] of Object.entries(tasks)) {
@@ -257,7 +257,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Artifact": {
+    case "artifact": {
       const arts = data["artifacts"];
       if (!isRecord(arts)) return;
       for (const [id, a] of Object.entries(arts)) {
@@ -265,7 +265,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Tool": {
+    case "tool": {
       const tools = data["tools"];
       if (!isRecord(tools)) return;
       for (const [id, t] of Object.entries(tools)) {
@@ -273,7 +273,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "ToolCommand": {
+    case "tool_command": {
       const tools = data["tools"];
       if (!isRecord(tools)) return;
       for (const [tid, t] of Object.entries(tools)) {
@@ -289,7 +289,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Validation": {
+    case "validation": {
       const vals = data["validations"];
       if (!isRecord(vals)) return;
       for (const [id, v] of Object.entries(vals)) {
@@ -297,7 +297,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "HandoffType": {
+    case "handoff_type": {
       const ht = data["handoff_types"];
       if (!isRecord(ht)) return;
       for (const [id, h] of Object.entries(ht)) {
@@ -305,7 +305,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Workflow": {
+    case "workflow": {
       const wf = data["workflow"];
       if (!isRecord(wf)) return;
       for (const [id, w] of Object.entries(wf)) {
@@ -313,7 +313,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "WorkflowStep": {
+    case "workflow_step": {
       const wf = data["workflow"];
       if (!isRecord(wf)) return;
       for (const [wid, w] of Object.entries(wf)) {
@@ -329,7 +329,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Policy": {
+    case "policy": {
       const pol = data["policies"];
       if (!isRecord(pol)) return;
       for (const [id, p] of Object.entries(pol)) {
@@ -337,7 +337,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "Guardrail": {
+    case "guardrail": {
       const gr = data["guardrails"];
       if (!isRecord(gr)) return;
       for (const [id, g] of Object.entries(gr)) {
@@ -345,7 +345,7 @@ function* enumerateEntitiesByType(
       }
       return;
     }
-    case "GuardrailPolicy": {
+    case "guardrail_policy": {
       const gp = data["guardrail_policies"];
       if (!isRecord(gp)) return;
       for (const [id, p] of Object.entries(gp)) {
@@ -439,13 +439,13 @@ function walkExtensionNodes(
   }
 
   switch (nodeType) {
-    case "Root": {
+    case "root": {
       const sys = obj["system"];
       if (isRecord(sys)) {
         walkExtensionNodes(
           sys,
           "system",
-          "System",
+          "system",
           declMap,
           diagnostics,
           ajvInstance,
@@ -458,7 +458,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               a,
               `agents.${id}`,
-              "Agent",
+              "agent",
               declMap,
               diagnostics,
               ajvInstance,
@@ -473,7 +473,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               t,
               `tasks.${id}`,
-              "Task",
+              "task",
               declMap,
               diagnostics,
               ajvInstance,
@@ -488,7 +488,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               a,
               `artifacts.${id}`,
-              "Artifact",
+              "artifact",
               declMap,
               diagnostics,
               ajvInstance,
@@ -503,7 +503,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               t,
               `tools.${id}`,
-              "Tool",
+              "tool",
               declMap,
               diagnostics,
               ajvInstance,
@@ -518,7 +518,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               v,
               `validations.${id}`,
-              "Validation",
+              "validation",
               declMap,
               diagnostics,
               ajvInstance,
@@ -533,7 +533,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               h,
               `handoff_types.${id}`,
-              "HandoffType",
+              "handoff_type",
               declMap,
               diagnostics,
               ajvInstance,
@@ -548,7 +548,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               w,
               `workflow.${id}`,
-              "Workflow",
+              "workflow",
               declMap,
               diagnostics,
               ajvInstance,
@@ -563,7 +563,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               p,
               `policies.${id}`,
-              "Policy",
+              "policy",
               declMap,
               diagnostics,
               ajvInstance,
@@ -578,7 +578,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               g,
               `guardrails.${id}`,
-              "Guardrail",
+              "guardrail",
               declMap,
               diagnostics,
               ajvInstance,
@@ -593,7 +593,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               p,
               `guardrail_policies.${id}`,
-              "GuardrailPolicy",
+              "guardrail_policy",
               declMap,
               diagnostics,
               ajvInstance,
@@ -603,7 +603,7 @@ function walkExtensionNodes(
       }
       break;
     }
-    case "Agent": {
+    case "agent": {
       const rules = obj["rules"];
       if (Array.isArray(rules)) {
         for (let i = 0; i < rules.length; i++) {
@@ -612,7 +612,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               r,
               `${path}.rules[${i}]`,
-              "Rule",
+              "rule",
               declMap,
               diagnostics,
               ajvInstance,
@@ -628,7 +628,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               e,
               `${path}.escalation_criteria[${i}]`,
-              "EscalationCriterion",
+              "escalation_criterion",
               declMap,
               diagnostics,
               ajvInstance,
@@ -644,7 +644,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               p,
               `${path}.prerequisites[${i}]`,
-              "Prerequisite",
+              "prerequisite",
               declMap,
               diagnostics,
               ajvInstance,
@@ -654,7 +654,7 @@ function walkExtensionNodes(
       }
       break;
     }
-    case "Task": {
+    case "task": {
       const steps = obj["execution_steps"];
       if (Array.isArray(steps)) {
         for (let i = 0; i < steps.length; i++) {
@@ -663,7 +663,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               s,
               `${path}.execution_steps[${i}]`,
-              "ExecutionStep",
+              "execution_step",
               declMap,
               diagnostics,
               ajvInstance,
@@ -673,7 +673,7 @@ function walkExtensionNodes(
       }
       break;
     }
-    case "Tool": {
+    case "tool": {
       const cmds = obj["commands"];
       if (Array.isArray(cmds)) {
         for (let i = 0; i < cmds.length; i++) {
@@ -682,7 +682,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               c,
               `${path}.commands[${i}]`,
-              "ToolCommand",
+              "tool_command",
               declMap,
               diagnostics,
               ajvInstance,
@@ -692,7 +692,7 @@ function walkExtensionNodes(
       }
       break;
     }
-    case "Workflow": {
+    case "workflow": {
       const steps = obj["steps"];
       if (Array.isArray(steps)) {
         for (let i = 0; i < steps.length; i++) {
@@ -701,7 +701,7 @@ function walkExtensionNodes(
             walkExtensionNodes(
               s,
               `${path}.steps[${i}]`,
-              "WorkflowStep",
+              "workflow_step",
               declMap,
               diagnostics,
               ajvInstance,
@@ -728,7 +728,7 @@ function checkExtensionValidation(
   const diagnostics: DiagnosticMessage[] = [];
   const ajvInstance = new Ajv({ allErrors: true, strict: false });
 
-  walkExtensionNodes(data, "", "Root", declMap, diagnostics, ajvInstance);
+  walkExtensionNodes(data, "", "root", declMap, diagnostics, ajvInstance);
 
   for (const [extKey, decl] of Object.entries(declMap)) {
     if (!decl.required) continue;

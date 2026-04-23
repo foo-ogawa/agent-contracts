@@ -860,7 +860,7 @@ describe("validateSchema — extension validation", () => {
   it("emits extension-scope-mismatch when extension scope is Agent but used on Task", () => {
     const data = minimalDsl({
       "x-extensions": {
-        "x-only-agent": { type: "string", scope: ["Agent"] },
+        "x-only-agent": { type: "string", scope: ["agent"] },
       },
       tasks: {
         t1: {
@@ -883,7 +883,7 @@ describe("validateSchema — extension validation", () => {
   it("emits extension-scope-mismatch for x-* on WorkflowStep when scope excludes it", () => {
     const data = minimalDsl({
       "x-extensions": {
-        "x-agent-only": { type: "string", scope: ["Agent"] },
+        "x-agent-only": { type: "string", scope: ["agent"] },
       },
       workflow: {
         w: {
@@ -899,7 +899,7 @@ describe("validateSchema — extension validation", () => {
   it("allows extension with scope Agent on Agent node", () => {
     const data = minimalDsl({
       "x-extensions": {
-        "x-only-agent": { type: "string", scope: ["Agent"] },
+        "x-only-agent": { type: "string", scope: ["agent"] },
       },
       agents: {
         a1: { role_name: "R", purpose: "P", "x-only-agent": "ok" },
@@ -964,7 +964,7 @@ describe("validateSchema — extension validation", () => {
         },
       },
       "x-extensions": {
-        "x-art-meta": { type: "string", required: true, scope: ["Artifact"] },
+        "x-art-meta": { type: "string", required: true, scope: ["artifact"] },
       },
     });
     const result = validateSchema(data);
@@ -995,7 +995,7 @@ describe("validateSchema — extension validation", () => {
         },
       },
       "x-extensions": {
-        "x-art-meta": { type: "string", required: true, scope: ["Artifact"] },
+        "x-art-meta": { type: "string", required: true, scope: ["artifact"] },
       },
     });
     const result = validateSchema(data);
