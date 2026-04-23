@@ -1063,6 +1063,65 @@ describe("validateSchema — extension validation", () => {
   });
 });
 
+describe("validateSchema — x-extensions-strict mode", () => {
+  it("promotes undeclared-extension from warning to error when x-extensions-strict is true", () => {
+    const data = minimalDsl({
+      "x-extensions": { "x-known": { type: "string" } },
+      "x-extensions-strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-unknown": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    const diag = result.diagnostics.find((d) => d.code === "undeclared-extension");
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBeUndefined();
+  });
+
+  it("keeps undeclared-extension as warning when x-extensions-strict is false", () => {
+    const data = minimalDsl({
+      "x-extensions": { "x-known": { type: "string" } },
+      "x-extensions-strict": false,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-unknown": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (d) => d.code === "undeclared-extension" && d.severity === "warning",
+      ),
+    ).toBe(true);
+  });
+
+  it("reports all x-* as undeclared errors when strict but no x-extensions declared", () => {
+    const data = minimalDsl({
+      "x-extensions-strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-anything": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+  });
+
+  it("passes strict mode when all x-* properties are declared", () => {
+    const data = minimalDsl({
+      "x-extensions": { "x-tag": { type: "string" } },
+      "x-extensions-strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-tag": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "undeclared-extension")).toHaveLength(0);
+  });
+});
+
 describe("validateSchema — x-extensions key validation", () => {
   it("accepts x-extensions with x- prefixed keys", () => {
     const data = {

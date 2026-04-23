@@ -1216,6 +1216,10 @@
         ],
         "additionalProperties": false
       }
+    },
+    "x-extensions-strict": {
+      "default": false,
+      "type": "boolean"
     }
   },
   "required": [
@@ -1231,7 +1235,8 @@
     "policies",
     "guardrails",
     "guardrail_policies",
-    "components"
+    "components",
+    "x-extensions-strict"
   ],
   "additionalProperties": {}
 }

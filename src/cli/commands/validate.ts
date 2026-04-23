@@ -12,7 +12,8 @@ export const validateCommand = new Command("validate")
   .option("-c, --config <path>", "Path to agent-contracts.config.yaml")
   .option("--format <format>", "Output format (text|json)", "text")
   .option("--quiet", "Suppress output on success", false)
-  .action(async (dir: string, opts: FormatOptions & { config?: string }) => {
+  .option("--strict", "Treat warnings as errors", false)
+  .action(async (dir: string, opts: FormatOptions & { config?: string; strict: boolean }) => {
     try {
       const config = await loadConfig(opts.config);
       const dslPath = resolveDslPath(dir, DIR_DEFAULT, config);
@@ -34,10 +35,17 @@ export const validateCommand = new Command("validate")
       const refDiags = checkReferences(schemaResult.data!);
       const handoffDiags = validateHandoffSchemas(schemaResult.data!);
       const allDiags = [...refDiags, ...handoffDiags, ...schemaWarnings];
+      const hasWarnings = allDiags.some(
+        (d) => "severity" in d && d.severity === "warning",
+      );
       if (allDiags.length > 0) {
         const output = formatDiagnostics(allDiags, opts);
         if (output) process.stderr.write(output + "\n");
-        if (refDiags.length > 0 || handoffDiags.length > 0) {
+        if (
+          refDiags.length > 0 ||
+          handoffDiags.length > 0 ||
+          (opts.strict && hasWarnings)
+        ) {
           process.exit(1);
         }
       }

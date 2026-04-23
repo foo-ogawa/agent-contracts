@@ -366,6 +366,7 @@ function validateDeclaredExtension(
   declMap: ExtensionDeclMap,
   diagnostics: DiagnosticMessage[],
   ajvInstance: Ajv,
+  strict: boolean,
 ): void {
   const path = parentPath ? `${parentPath}.${key}` : key;
   const decl = declMap[key];
@@ -374,7 +375,7 @@ function validateDeclaredExtension(
       path,
       message: `Extension "${key}" is not declared in x-extensions.`,
       code: "undeclared-extension",
-      severity: "warning",
+      ...(!strict ? { severity: "warning" as const } : {}),
     });
     return;
   }
@@ -419,12 +420,13 @@ function walkExtensionNodes(
   declMap: ExtensionDeclMap,
   diagnostics: DiagnosticMessage[],
   ajvInstance: Ajv,
+  strict: boolean,
 ): void {
   if (!isRecord(value)) return;
   const obj = value;
 
   for (const key of Object.keys(obj)) {
-    if (key === "x-extensions") continue;
+    if (key === "x-extensions" || key === "x-extensions-strict") continue;
     if (key.startsWith("x-")) {
       validateDeclaredExtension(
         path,
@@ -434,6 +436,7 @@ function walkExtensionNodes(
         declMap,
         diagnostics,
         ajvInstance,
+        strict,
       );
     }
   }
@@ -449,6 +452,7 @@ function walkExtensionNodes(
           declMap,
           diagnostics,
           ajvInstance,
+          strict,
         );
       }
       const agents = obj["agents"];
@@ -462,6 +466,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -477,6 +482,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -492,6 +498,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -507,6 +514,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -522,6 +530,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -537,6 +546,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -552,6 +562,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -567,6 +578,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -582,6 +594,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -597,6 +610,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -616,6 +630,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -632,6 +647,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -648,6 +664,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -667,6 +684,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -686,6 +704,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -705,6 +724,7 @@ function walkExtensionNodes(
               declMap,
               diagnostics,
               ajvInstance,
+              strict,
             );
           }
         }
@@ -719,16 +739,20 @@ function walkExtensionNodes(
 function checkExtensionValidation(
   data: Record<string, unknown>,
 ): DiagnosticMessage[] {
+  const strict = data["x-extensions-strict"] === true;
   const raw = data["x-extensions"];
+  let declMap: ExtensionDeclMap;
   if (!isRecord(raw) || Object.keys(raw).length === 0) {
-    return [];
+    if (!strict) return [];
+    declMap = {};
+  } else {
+    declMap = raw as ExtensionDeclMap;
   }
 
-  const declMap = raw as ExtensionDeclMap;
   const diagnostics: DiagnosticMessage[] = [];
   const ajvInstance = new Ajv({ allErrors: true, strict: false });
 
-  walkExtensionNodes(data, "", "root", declMap, diagnostics, ajvInstance);
+  walkExtensionNodes(data, "", "root", declMap, diagnostics, ajvInstance, strict);
 
   for (const [extKey, decl] of Object.entries(declMap)) {
     if (!decl.required) continue;

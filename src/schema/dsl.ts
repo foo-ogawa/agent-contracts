@@ -84,6 +84,7 @@ export const DslSchema = z
     "x-extensions": z
       .record(z.string(), XExtensionDeclSchema)
       .optional(),
+    "x-extensions-strict": z.boolean().default(false),
   })
   .passthrough();
 export type Dsl = z.infer<typeof DslSchema>;
