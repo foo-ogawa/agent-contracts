@@ -21,6 +21,9 @@ export const validateCommand = new Command("validate")
         ? substituteVars(resolved.data, config.vars)
         : resolved.data;
       const schemaResult = validateSchema(data);
+      const schemaWarnings = schemaResult.diagnostics.filter(
+        (d) => d.severity === "warning",
+      );
 
       if (!schemaResult.success) {
         const output = formatDiagnostics(schemaResult.diagnostics, opts);
@@ -30,14 +33,16 @@ export const validateCommand = new Command("validate")
 
       const refDiags = checkReferences(schemaResult.data!);
       const handoffDiags = validateHandoffSchemas(schemaResult.data!);
-      const allDiags = [...refDiags, ...handoffDiags];
+      const allDiags = [...refDiags, ...handoffDiags, ...schemaWarnings];
       if (allDiags.length > 0) {
         const output = formatDiagnostics(allDiags, opts);
         if (output) process.stderr.write(output + "\n");
-        process.exit(1);
+        if (refDiags.length > 0 || handoffDiags.length > 0) {
+          process.exit(1);
+        }
       }
 
-      if (!opts.quiet) {
+      if (!opts.quiet && allDiags.length === 0) {
         process.stdout.write("Validation passed.\n");
       }
     } catch (err) {

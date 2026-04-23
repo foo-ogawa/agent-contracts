@@ -36,6 +36,9 @@ export const checkCommand = new Command("check")
           : resolved.data;
 
         const schemaResult = validateSchema(data);
+        const schemaWarnings = schemaResult.diagnostics.filter(
+          (d) => d.severity === "warning",
+        );
         if (!schemaResult.success) {
           const output = formatDiagnostics(schemaResult.diagnostics, {
             format: opts.format,
@@ -47,7 +50,7 @@ export const checkCommand = new Command("check")
 
         const refDiags = checkReferences(schemaResult.data!);
         const handoffDiags = validateHandoffSchemas(schemaResult.data!);
-        const allRefDiags = [...refDiags, ...handoffDiags];
+        const allRefDiags = [...refDiags, ...handoffDiags, ...schemaWarnings];
         if (allRefDiags.length > 0) {
           const output = formatDiagnostics(allRefDiags, {
             format: opts.format,
