@@ -829,12 +829,305 @@ describe("validateSchema — decision step routing_key", () => {
   });
 });
 
-describe("validateSchema — x-extensions key validation", () => {
-  it("accepts x-extensions with x- prefixed keys", () => {
+function minimalDsl(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 1,
+    system: { id: "s", name: "S", default_workflow_order: [] },
+    agents: {
+      a1: { role_name: "R", purpose: "P" },
+    },
+    tasks: {
+      t1: {
+        description: "d",
+        target_agent: "a1",
+        allowed_from_agents: ["a1"],
+        workflow: "w",
+        input_artifacts: [],
+        invocation_handoff: "h1",
+        result_handoff: "h2",
+      },
+    },
+    handoff_types: {
+      h1: { version: 1, schema: {} },
+      h2: { version: 1, schema: {} },
+    },
+    workflow: { w: { steps: [] } },
+    ...overrides,
+  };
+}
+
+describe("validateSchema — extension validation", () => {
+  it("emits extension-scope-mismatch when extension scope is Agent but used on Task", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-only-agent": { type: "string", scope: ["agent"] },
+      },
+      tasks: {
+        t1: {
+          description: "d",
+          target_agent: "a1",
+          allowed_from_agents: ["a1"],
+          workflow: "w",
+          input_artifacts: [],
+          invocation_handoff: "h1",
+          result_handoff: "h2",
+          "x-only-agent": "nope",
+        },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-scope-mismatch")).toBe(true);
+  });
+
+  it("emits extension-scope-mismatch for x-* on WorkflowStep when scope excludes it", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-agent-only": { type: "string", scope: ["agent"] },
+      },
+      workflow: {
+        w: {
+          steps: [{ type: "handoff", handoff_kind: "k", "x-agent-only": "wrong" }],
+        },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-scope-mismatch")).toBe(true);
+  });
+
+  it("allows extension with scope Agent on Agent node", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-only-agent": { type: "string", scope: ["agent"] },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-only-agent": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "extension-scope-mismatch")).toHaveLength(0);
+  });
+
+  it("emits extension-schema-violation when value breaks declared JSON Schema", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-label": { type: "string", schema: { type: "string", minLength: 1 } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-label": "" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-schema-violation")).toBe(true);
+  });
+
+  it("emits extension-schema-violation when declaration has invalid JSON Schema", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-bad": { type: "string", schema: { type: "invalid-type" } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-bad": "anything" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-schema-violation")).toBe(true);
+  });
+
+  it("passes when extension value conforms to declared schema", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-label": { type: "string", schema: { type: "string", minLength: 1 } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-label": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("emits extension-required-missing when required Artifact-scoped extension is absent", () => {
+    const data = minimalDsl({
+      artifacts: {
+        art1: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+        },
+      },
+      "extensions": {
+        "x-art-meta": { type: "string", required: true, scope: ["artifact"] },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-required-missing")).toBe(true);
+  });
+
+  it("passes when required Artifact-scoped extension is present on all artifacts", () => {
+    const data = minimalDsl({
+      artifacts: {
+        art1: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+          "x-art-meta": "m1",
+        },
+        art2: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+          "x-art-meta": "m2",
+        },
+      },
+      "extensions": {
+        "x-art-meta": { type: "string", required: true, scope: ["artifact"] },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "extension-required-missing")).toHaveLength(0);
+  });
+
+  it("warns with undeclared-extension for x-* key not listed in extensions", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-mystery": true },
+      },
+      "extensions": {
+        "x-known": { type: "string" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+    expect(result.diagnostics.find((d) => d.code === "undeclared-extension")?.severity).toBe("warning");
+  });
+
+  it("does not set success false when only undeclared-extension warnings exist", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-not-listed": "v" },
+      },
+      "extensions": {
+        "x-other": { type: "string" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+  });
+
+  it("accepts extension declaration entries with only type, items, and description", () => {
+    const data = minimalDsl({
+      "extensions": {
+        "x-flags": { type: "array", items: "string", description: "flags" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code.startsWith("extension-"))).toHaveLength(0);
+  });
+
+  it("skips extension validation when extensions declarations are absent even if x-* properties exist", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-freeform": "yes" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.filter(
+        (d) =>
+          d.code === "undeclared-extension" ||
+          d.code === "extension-scope-mismatch" ||
+          d.code === "extension-schema-violation" ||
+          d.code === "extension-required-missing",
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe("validateSchema — extensions_strict mode", () => {
+  it("promotes undeclared-extension from warning to error when extensions_strict is true", () => {
+    const data = minimalDsl({
+      "extensions": { "x-known": { type: "string" } },
+      "extensions_strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-unknown": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    const diag = result.diagnostics.find((d) => d.code === "undeclared-extension");
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBeUndefined();
+  });
+
+  it("keeps undeclared-extension as warning when extensions_strict is false", () => {
+    const data = minimalDsl({
+      "extensions": { "x-known": { type: "string" } },
+      "extensions_strict": false,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-unknown": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (d) => d.code === "undeclared-extension" && d.severity === "warning",
+      ),
+    ).toBe(true);
+  });
+
+  it("reports all x-* as undeclared errors when strict but no extensions declared", () => {
+    const data = minimalDsl({
+      "extensions_strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-anything": "val" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+  });
+
+  it("passes strict mode when all x-* properties are declared", () => {
+    const data = minimalDsl({
+      "extensions": { "x-tag": { type: "string" } },
+      "extensions_strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-tag": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "undeclared-extension")).toHaveLength(0);
+  });
+});
+
+describe("validateSchema — extensions key validation", () => {
+  it("accepts extensions with x- prefixed keys", () => {
     const data = {
       version: 1,
       system: { id: "s", name: "S", default_workflow_order: [] },
-      "x-extensions": {
+      "extensions": {
         "x-flags": { type: "array", items: "string", description: "CLI flags" },
         "x-check-script": { type: "string", description: "Hook check script path" },
       },
@@ -843,11 +1136,11 @@ describe("validateSchema — x-extensions key validation", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects x-extensions with non-x- prefixed keys", () => {
+  it("rejects extensions with non-x- prefixed keys", () => {
     const data = {
       version: 1,
       system: { id: "s", name: "S", default_workflow_order: [] },
-      "x-extensions": {
+      "extensions": {
         "flags": { type: "array", description: "bad key" },
       },
     };
@@ -856,12 +1149,83 @@ describe("validateSchema — x-extensions key validation", () => {
     expect(result.diagnostics.some((d) => d.code === "x-extension-key-prefix")).toBe(true);
   });
 
-  it("accepts DSL without x-extensions", () => {
+  it("accepts DSL without extensions", () => {
     const data = {
       version: 1,
       system: { id: "s", name: "S", default_workflow_order: [] },
     };
     const result = validateSchema(data);
     expect(result.success).toBe(true);
+  });
+});
+
+describe("validateSchema — deprecated x-extensions aliases", () => {
+  it("accepts x-extensions and emits deprecated-property warning", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      "x-extensions": {
+        "x-flags": { type: "array", items: "string", description: "flags" },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (d) =>
+          d.code === "deprecated-property" &&
+          d.path === "x-extensions" &&
+          d.severity === "warning",
+      ),
+    ).toBe(true);
+    expect(result.data?.extensions).toEqual({
+      "x-flags": {
+        type: "array",
+        items: "string",
+        description: "flags",
+        required: false,
+      },
+    });
+  });
+
+  it("accepts x-extensions-strict alias with deprecated-property warning", () => {
+    const data = minimalDsl({
+      extensions: { "x-known": { type: "string" } },
+      "x-extensions-strict": true,
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-known": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (d) =>
+          d.code === "deprecated-property" &&
+          d.path === "x-extensions-strict" &&
+          d.severity === "warning",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not copy x-extensions when extensions is already set", () => {
+    const data = {
+      version: 1,
+      system: { id: "s", name: "S", default_workflow_order: [] },
+      extensions: {
+        "x-from-new": { type: "string", description: "new" },
+      },
+      "x-extensions": {
+        "x-from-old": { type: "string", description: "old" },
+      },
+    };
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.filter((d) => d.code === "deprecated-property"),
+    ).toHaveLength(0);
+    expect(result.data?.extensions).toEqual({
+      "x-from-new": { type: "string", description: "new", required: false },
+    });
   });
 });

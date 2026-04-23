@@ -1155,7 +1155,8 @@
       ],
       "additionalProperties": {}
     },
-    "x-extensions": {
+    "extensions": {
+      "default": {},
       "type": "object",
       "propertyNames": {
         "type": "string"
@@ -1171,13 +1172,55 @@
           },
           "description": {
             "type": "string"
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "root",
+                "system",
+                "agent",
+                "task",
+                "execution_step",
+                "artifact",
+                "tool",
+                "tool_command",
+                "validation",
+                "handoff_type",
+                "workflow",
+                "workflow_step",
+                "policy",
+                "guardrail",
+                "guardrail_policy",
+                "rule",
+                "escalation_criterion",
+                "prerequisite"
+              ]
+            }
+          },
+          "schema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
-          "type"
+          "type",
+          "required"
         ],
         "additionalProperties": false
       }
+    },
+    "extensions_strict": {
+      "default": false,
+      "type": "boolean"
     }
   },
   "required": [
@@ -1193,7 +1236,9 @@
     "policies",
     "guardrails",
     "guardrail_policies",
-    "components"
+    "components",
+    "extensions",
+    "extensions_strict"
   ],
   "additionalProperties": {}
 }

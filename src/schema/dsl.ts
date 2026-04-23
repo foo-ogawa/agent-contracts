@@ -23,6 +23,31 @@ export const ComponentsSchema = z
   .passthrough();
 export type Components = z.infer<typeof ComponentsSchema>;
 
+export const SCOPE_NODE_TYPES = [
+  "root",
+  "system",
+  "agent",
+  "task",
+  "execution_step",
+  "artifact",
+  "tool",
+  "tool_command",
+  "validation",
+  "handoff_type",
+  "workflow",
+  "workflow_step",
+  "policy",
+  "guardrail",
+  "guardrail_policy",
+  "rule",
+  "escalation_criterion",
+  "prerequisite",
+] as const;
+
+export type ScopeNodeType = (typeof SCOPE_NODE_TYPES)[number];
+
+export const ScopeNodeTypeSchema = z.enum(SCOPE_NODE_TYPES);
+
 /**
  * Declaration of project-specific `x-*` extension fields.
  * Each key must start with `x-` and describes the expected type/shape
@@ -32,6 +57,9 @@ export const XExtensionDeclSchema = z.object({
   type: z.string(),
   items: z.string().optional(),
   description: z.string().optional(),
+  scope: z.array(ScopeNodeTypeSchema).optional(),
+  schema: z.record(z.string(), z.any()).optional(),
+  required: z.boolean().default(false),
 });
 export type XExtensionDecl = z.infer<typeof XExtensionDeclSchema>;
 
@@ -53,9 +81,10 @@ export const DslSchema = z
       .record(z.string(), GuardrailPolicySchema)
       .default({}),
     components: ComponentsSchema.default({ schemas: {} }),
-    "x-extensions": z
+    extensions: z
       .record(z.string(), XExtensionDeclSchema)
-      .optional(),
+      .default({}),
+    extensions_strict: z.boolean().default(false),
   })
   .passthrough();
 export type Dsl = z.infer<typeof DslSchema>;

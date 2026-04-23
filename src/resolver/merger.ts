@@ -254,6 +254,7 @@ const MERGE_SECTIONS = [
   "guardrails",
   "guardrail_policies",
   "components",
+  "extensions",
 ];
 
 export function mergeDsl(

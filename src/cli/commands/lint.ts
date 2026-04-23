@@ -27,6 +27,9 @@ export const lintCommand = new Command("lint")
           ? substituteVars(resolved.data, config.vars)
           : resolved.data;
         const schemaResult = validateSchema(data);
+        const schemaWarnings = schemaResult.diagnostics.filter(
+          (d) => d.severity === "warning",
+        );
 
         if (!schemaResult.success) {
           const output = formatDiagnostics(schemaResult.diagnostics, {
@@ -39,7 +42,7 @@ export const lintCommand = new Command("lint")
 
         const tsDiagnostics = lint(schemaResult.data!);
         const spectralDiagnostics = await spectralLint(schemaResult.data! as unknown as Record<string, unknown>);
-        const diagnostics = [...tsDiagnostics, ...spectralDiagnostics];
+        const diagnostics = [...tsDiagnostics, ...spectralDiagnostics, ...schemaWarnings];
         if (diagnostics.length > 0) {
           const output = formatDiagnostics(diagnostics, {
             format: opts.format,

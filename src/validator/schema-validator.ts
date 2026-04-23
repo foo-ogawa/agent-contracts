@@ -1,10 +1,17 @@
+import Ajv from "ajv";
 import { z } from "zod";
-import { DslSchema, type Dsl } from "../schema/index.js";
+import {
+  DslSchema,
+  type Dsl,
+  SCOPE_NODE_TYPES,
+  type ScopeNodeType,
+} from "../schema/index.js";
 
 export interface DiagnosticMessage {
   path: string;
   message: string;
   code: string;
+  severity?: "error" | "warning";
 }
 
 export interface SchemaValidationResult {
@@ -92,16 +99,16 @@ function checkCustomPropsRecursive(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function checkXExtensionsKeys(
+function checkExtensionsKeys(
   data: Record<string, unknown>,
 ): DiagnosticMessage[] {
-  const extensions = data["x-extensions"];
+  const extensions = data["extensions"];
   if (typeof extensions !== "object" || extensions === null) return [];
   const diagnostics: DiagnosticMessage[] = [];
   for (const key of Object.keys(extensions as Record<string, unknown>)) {
     if (!key.startsWith("x-")) {
       diagnostics.push({
-        path: `x-extensions.${key}`,
+        path: `extensions.${key}`,
         message: `Extension key "${key}" must start with "x-" prefix.`,
         code: "x-extension-key-prefix",
       });
@@ -140,34 +147,698 @@ function checkDecisionStepRoutingKey(
   return diagnostics;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+type ExtensionDeclMap = Record<
+  string,
+  {
+    scope?: ScopeNodeType[];
+    schema?: Record<string, unknown>;
+    required?: boolean;
+  }
+>;
+
+function* enumerateEntitiesByType(
+  data: Record<string, unknown>,
+  nodeType: ScopeNodeType,
+): Generator<{ path: string; obj: Record<string, unknown> }> {
+  switch (nodeType) {
+    case "root":
+      yield { path: "", obj: data };
+      return;
+    case "system": {
+      const sys = data["system"];
+      if (isRecord(sys)) yield { path: "system", obj: sys };
+      return;
+    }
+    case "agent": {
+      const agents = data["agents"];
+      if (!isRecord(agents)) return;
+      for (const [id, a] of Object.entries(agents)) {
+        if (isRecord(a)) yield { path: `agents.${id}`, obj: a };
+      }
+      return;
+    }
+    case "rule": {
+      const agents = data["agents"];
+      if (!isRecord(agents)) return;
+      for (const [aid, a] of Object.entries(agents)) {
+        if (!isRecord(a)) continue;
+        const rules = a["rules"];
+        if (!Array.isArray(rules)) continue;
+        for (let i = 0; i < rules.length; i++) {
+          const r = rules[i];
+          if (isRecord(r)) yield { path: `agents.${aid}.rules[${i}]`, obj: r };
+        }
+      }
+      return;
+    }
+    case "escalation_criterion": {
+      const agents = data["agents"];
+      if (!isRecord(agents)) return;
+      for (const [aid, a] of Object.entries(agents)) {
+        if (!isRecord(a)) continue;
+        const esc = a["escalation_criteria"];
+        if (!Array.isArray(esc)) continue;
+        for (let i = 0; i < esc.length; i++) {
+          const e = esc[i];
+          if (isRecord(e)) {
+            yield {
+              path: `agents.${aid}.escalation_criteria[${i}]`,
+              obj: e,
+            };
+          }
+        }
+      }
+      return;
+    }
+    case "prerequisite": {
+      const agents = data["agents"];
+      if (!isRecord(agents)) return;
+      for (const [aid, a] of Object.entries(agents)) {
+        if (!isRecord(a)) continue;
+        const pre = a["prerequisites"];
+        if (!Array.isArray(pre)) continue;
+        for (let i = 0; i < pre.length; i++) {
+          const p = pre[i];
+          if (isRecord(p)) {
+            yield { path: `agents.${aid}.prerequisites[${i}]`, obj: p };
+          }
+        }
+      }
+      return;
+    }
+    case "task": {
+      const tasks = data["tasks"];
+      if (!isRecord(tasks)) return;
+      for (const [id, t] of Object.entries(tasks)) {
+        if (isRecord(t)) yield { path: `tasks.${id}`, obj: t };
+      }
+      return;
+    }
+    case "execution_step": {
+      const tasks = data["tasks"];
+      if (!isRecord(tasks)) return;
+      for (const [tid, t] of Object.entries(tasks)) {
+        if (!isRecord(t)) continue;
+        const steps = t["execution_steps"];
+        if (!Array.isArray(steps)) continue;
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (isRecord(s)) {
+            yield {
+              path: `tasks.${tid}.execution_steps[${i}]`,
+              obj: s,
+            };
+          }
+        }
+      }
+      return;
+    }
+    case "artifact": {
+      const arts = data["artifacts"];
+      if (!isRecord(arts)) return;
+      for (const [id, a] of Object.entries(arts)) {
+        if (isRecord(a)) yield { path: `artifacts.${id}`, obj: a };
+      }
+      return;
+    }
+    case "tool": {
+      const tools = data["tools"];
+      if (!isRecord(tools)) return;
+      for (const [id, t] of Object.entries(tools)) {
+        if (isRecord(t)) yield { path: `tools.${id}`, obj: t };
+      }
+      return;
+    }
+    case "tool_command": {
+      const tools = data["tools"];
+      if (!isRecord(tools)) return;
+      for (const [tid, t] of Object.entries(tools)) {
+        if (!isRecord(t)) continue;
+        const cmds = t["commands"];
+        if (!Array.isArray(cmds)) continue;
+        for (let i = 0; i < cmds.length; i++) {
+          const c = cmds[i];
+          if (isRecord(c)) {
+            yield { path: `tools.${tid}.commands[${i}]`, obj: c };
+          }
+        }
+      }
+      return;
+    }
+    case "validation": {
+      const vals = data["validations"];
+      if (!isRecord(vals)) return;
+      for (const [id, v] of Object.entries(vals)) {
+        if (isRecord(v)) yield { path: `validations.${id}`, obj: v };
+      }
+      return;
+    }
+    case "handoff_type": {
+      const ht = data["handoff_types"];
+      if (!isRecord(ht)) return;
+      for (const [id, h] of Object.entries(ht)) {
+        if (isRecord(h)) yield { path: `handoff_types.${id}`, obj: h };
+      }
+      return;
+    }
+    case "workflow": {
+      const wf = data["workflow"];
+      if (!isRecord(wf)) return;
+      for (const [id, w] of Object.entries(wf)) {
+        if (isRecord(w)) yield { path: `workflow.${id}`, obj: w };
+      }
+      return;
+    }
+    case "workflow_step": {
+      const wf = data["workflow"];
+      if (!isRecord(wf)) return;
+      for (const [wid, w] of Object.entries(wf)) {
+        if (!isRecord(w)) continue;
+        const steps = w["steps"];
+        if (!Array.isArray(steps)) continue;
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (isRecord(s)) {
+            yield { path: `workflow.${wid}.steps[${i}]`, obj: s };
+          }
+        }
+      }
+      return;
+    }
+    case "policy": {
+      const pol = data["policies"];
+      if (!isRecord(pol)) return;
+      for (const [id, p] of Object.entries(pol)) {
+        if (isRecord(p)) yield { path: `policies.${id}`, obj: p };
+      }
+      return;
+    }
+    case "guardrail": {
+      const gr = data["guardrails"];
+      if (!isRecord(gr)) return;
+      for (const [id, g] of Object.entries(gr)) {
+        if (isRecord(g)) yield { path: `guardrails.${id}`, obj: g };
+      }
+      return;
+    }
+    case "guardrail_policy": {
+      const gp = data["guardrail_policies"];
+      if (!isRecord(gp)) return;
+      for (const [id, p] of Object.entries(gp)) {
+        if (isRecord(p)) yield { path: `guardrail_policies.${id}`, obj: p };
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+function validateDeclaredExtension(
+  parentPath: string,
+  nodeType: ScopeNodeType,
+  key: string,
+  val: unknown,
+  declMap: ExtensionDeclMap,
+  diagnostics: DiagnosticMessage[],
+  ajvInstance: Ajv,
+  strict: boolean,
+): void {
+  const path = parentPath ? `${parentPath}.${key}` : key;
+  const decl = declMap[key];
+  if (decl === undefined) {
+    diagnostics.push({
+      path,
+      message: `Extension "${key}" is not declared in extensions.`,
+      code: "undeclared-extension",
+      ...(!strict ? { severity: "warning" as const } : {}),
+    });
+    return;
+  }
+  const scope = decl.scope;
+  if (scope && scope.length > 0 && !scope.includes(nodeType)) {
+    diagnostics.push({
+      path,
+      message: `Extension "${key}" is not allowed on ${nodeType} (declared scope: ${scope.join(", ")}).`,
+      code: "extension-scope-mismatch",
+    });
+    return;
+  }
+  if (
+    decl.schema &&
+    typeof decl.schema === "object" &&
+    decl.schema !== null &&
+    Object.keys(decl.schema).length > 0
+  ) {
+    try {
+      const validate = ajvInstance.compile(decl.schema);
+      if (!validate(val)) {
+        diagnostics.push({
+          path,
+          message: `Extension "${key}" value does not match declared schema: ${ajvInstance.errorsText(validate.errors)}`,
+          code: "extension-schema-violation",
+        });
+      }
+    } catch (e) {
+      diagnostics.push({
+        path,
+        message: `Extension "${key}" has invalid JSON Schema in declaration: ${e instanceof Error ? e.message : String(e)}`,
+        code: "extension-schema-violation",
+      });
+    }
+  }
+}
+
+function walkExtensionNodes(
+  value: unknown,
+  path: string,
+  nodeType: ScopeNodeType,
+  declMap: ExtensionDeclMap,
+  diagnostics: DiagnosticMessage[],
+  ajvInstance: Ajv,
+  strict: boolean,
+): void {
+  if (!isRecord(value)) return;
+  const obj = value;
+
+  for (const key of Object.keys(obj)) {
+    if (
+      key === "extensions" ||
+      key === "extensions_strict" ||
+      key === "x-extensions" ||
+      key === "x-extensions-strict"
+    ) {
+      continue;
+    }
+    if (key.startsWith("x-")) {
+      validateDeclaredExtension(
+        path,
+        nodeType,
+        key,
+        obj[key],
+        declMap,
+        diagnostics,
+        ajvInstance,
+        strict,
+      );
+    }
+  }
+
+  switch (nodeType) {
+    case "root": {
+      const sys = obj["system"];
+      if (isRecord(sys)) {
+        walkExtensionNodes(
+          sys,
+          "system",
+          "system",
+          declMap,
+          diagnostics,
+          ajvInstance,
+          strict,
+        );
+      }
+      const agents = obj["agents"];
+      if (isRecord(agents)) {
+        for (const [id, a] of Object.entries(agents)) {
+          if (isRecord(a)) {
+            walkExtensionNodes(
+              a,
+              `agents.${id}`,
+              "agent",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const tasks = obj["tasks"];
+      if (isRecord(tasks)) {
+        for (const [id, t] of Object.entries(tasks)) {
+          if (isRecord(t)) {
+            walkExtensionNodes(
+              t,
+              `tasks.${id}`,
+              "task",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const artifacts = obj["artifacts"];
+      if (isRecord(artifacts)) {
+        for (const [id, a] of Object.entries(artifacts)) {
+          if (isRecord(a)) {
+            walkExtensionNodes(
+              a,
+              `artifacts.${id}`,
+              "artifact",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const tools = obj["tools"];
+      if (isRecord(tools)) {
+        for (const [id, t] of Object.entries(tools)) {
+          if (isRecord(t)) {
+            walkExtensionNodes(
+              t,
+              `tools.${id}`,
+              "tool",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const validations = obj["validations"];
+      if (isRecord(validations)) {
+        for (const [id, v] of Object.entries(validations)) {
+          if (isRecord(v)) {
+            walkExtensionNodes(
+              v,
+              `validations.${id}`,
+              "validation",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const handoffTypes = obj["handoff_types"];
+      if (isRecord(handoffTypes)) {
+        for (const [id, h] of Object.entries(handoffTypes)) {
+          if (isRecord(h)) {
+            walkExtensionNodes(
+              h,
+              `handoff_types.${id}`,
+              "handoff_type",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const workflow = obj["workflow"];
+      if (isRecord(workflow)) {
+        for (const [id, w] of Object.entries(workflow)) {
+          if (isRecord(w)) {
+            walkExtensionNodes(
+              w,
+              `workflow.${id}`,
+              "workflow",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const policies = obj["policies"];
+      if (isRecord(policies)) {
+        for (const [id, p] of Object.entries(policies)) {
+          if (isRecord(p)) {
+            walkExtensionNodes(
+              p,
+              `policies.${id}`,
+              "policy",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const guardrails = obj["guardrails"];
+      if (isRecord(guardrails)) {
+        for (const [id, g] of Object.entries(guardrails)) {
+          if (isRecord(g)) {
+            walkExtensionNodes(
+              g,
+              `guardrails.${id}`,
+              "guardrail",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const guardrailPolicies = obj["guardrail_policies"];
+      if (isRecord(guardrailPolicies)) {
+        for (const [id, p] of Object.entries(guardrailPolicies)) {
+          if (isRecord(p)) {
+            walkExtensionNodes(
+              p,
+              `guardrail_policies.${id}`,
+              "guardrail_policy",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      break;
+    }
+    case "agent": {
+      const rules = obj["rules"];
+      if (Array.isArray(rules)) {
+        for (let i = 0; i < rules.length; i++) {
+          const r = rules[i];
+          if (isRecord(r)) {
+            walkExtensionNodes(
+              r,
+              `${path}.rules[${i}]`,
+              "rule",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const esc = obj["escalation_criteria"];
+      if (Array.isArray(esc)) {
+        for (let i = 0; i < esc.length; i++) {
+          const e = esc[i];
+          if (isRecord(e)) {
+            walkExtensionNodes(
+              e,
+              `${path}.escalation_criteria[${i}]`,
+              "escalation_criterion",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      const pre = obj["prerequisites"];
+      if (Array.isArray(pre)) {
+        for (let i = 0; i < pre.length; i++) {
+          const p = pre[i];
+          if (isRecord(p)) {
+            walkExtensionNodes(
+              p,
+              `${path}.prerequisites[${i}]`,
+              "prerequisite",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      break;
+    }
+    case "task": {
+      const steps = obj["execution_steps"];
+      if (Array.isArray(steps)) {
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (isRecord(s)) {
+            walkExtensionNodes(
+              s,
+              `${path}.execution_steps[${i}]`,
+              "execution_step",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      break;
+    }
+    case "tool": {
+      const cmds = obj["commands"];
+      if (Array.isArray(cmds)) {
+        for (let i = 0; i < cmds.length; i++) {
+          const c = cmds[i];
+          if (isRecord(c)) {
+            walkExtensionNodes(
+              c,
+              `${path}.commands[${i}]`,
+              "tool_command",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      break;
+    }
+    case "workflow": {
+      const steps = obj["steps"];
+      if (Array.isArray(steps)) {
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (isRecord(s)) {
+            walkExtensionNodes(
+              s,
+              `${path}.steps[${i}]`,
+              "workflow_step",
+              declMap,
+              diagnostics,
+              ajvInstance,
+              strict,
+            );
+          }
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function checkExtensionValidation(
+  data: Record<string, unknown>,
+): DiagnosticMessage[] {
+  const strict = data["extensions_strict"] === true;
+  const raw = data["extensions"];
+  let declMap: ExtensionDeclMap;
+  if (!isRecord(raw) || Object.keys(raw).length === 0) {
+    if (!strict) return [];
+    declMap = {};
+  } else {
+    declMap = raw as ExtensionDeclMap;
+  }
+
+  const diagnostics: DiagnosticMessage[] = [];
+  const ajvInstance = new Ajv({ allErrors: true, strict: false });
+
+  walkExtensionNodes(data, "", "root", declMap, diagnostics, ajvInstance, strict);
+
+  for (const [extKey, decl] of Object.entries(declMap)) {
+    if (!decl.required) continue;
+    const applicableTypes: ScopeNodeType[] =
+      decl.scope && decl.scope.length > 0
+        ? decl.scope
+        : [...SCOPE_NODE_TYPES];
+
+    for (const t of applicableTypes) {
+      for (const { path, obj } of enumerateEntitiesByType(data, t)) {
+        if (!(extKey in obj)) {
+          diagnostics.push({
+            path,
+            message: `Required extension "${extKey}" is missing on ${t}.`,
+            code: "extension-required-missing",
+          });
+        }
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function hasBlockingDiagnostic(diagnostics: DiagnosticMessage[]): boolean {
+  return diagnostics.some((d) => d.severity !== "warning");
+}
+
 export function validateSchema(
   data: Record<string, unknown>,
 ): SchemaValidationResult {
+  const deprecationWarnings: DiagnosticMessage[] = [];
+
+  if ("x-extensions" in data && !("extensions" in data)) {
+    data["extensions"] = data["x-extensions"];
+    deprecationWarnings.push({
+      path: "x-extensions",
+      message: '"x-extensions" is deprecated. Use "extensions" instead.',
+      code: "deprecated-property",
+      severity: "warning",
+    });
+  }
+
+  if ("x-extensions-strict" in data && !("extensions_strict" in data)) {
+    data["extensions_strict"] = data["x-extensions-strict"];
+    deprecationWarnings.push({
+      path: "x-extensions-strict",
+      message:
+        '"x-extensions-strict" is deprecated. Use "extensions_strict" instead.',
+      code: "deprecated-property",
+      severity: "warning",
+    });
+  }
+
   const result = DslSchema.safeParse(data);
 
   if (!result.success) {
-    const diagnostics: DiagnosticMessage[] = result.error.issues.map((issue) => ({
-      path: issue.path.join("."),
-      message: issue.message,
-      code: "schema-validation",
-    }));
+    const diagnostics: DiagnosticMessage[] = [
+      ...deprecationWarnings,
+      ...result.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+        code: "schema-validation",
+      })),
+    ];
     return { success: false, diagnostics };
   }
 
-  const customPropDiagnostics = checkCustomPropsRecursive(data, DslSchema, "");
-  if (customPropDiagnostics.length > 0) {
-    return { success: false, diagnostics: customPropDiagnostics };
-  }
+  const diagnostics: DiagnosticMessage[] = [
+    ...deprecationWarnings,
+    ...checkCustomPropsRecursive(data, DslSchema, ""),
+    ...checkDecisionStepRoutingKey(data),
+    ...checkExtensionsKeys(data),
+    ...checkExtensionValidation(data),
+  ];
 
-  const decisionDiagnostics = checkDecisionStepRoutingKey(data);
-  if (decisionDiagnostics.length > 0) {
-    return { success: false, diagnostics: decisionDiagnostics };
-  }
-
-  const xExtDiagnostics = checkXExtensionsKeys(data);
-  if (xExtDiagnostics.length > 0) {
-    return { success: false, diagnostics: xExtDiagnostics };
-  }
-
-  return { success: true, data: result.data, diagnostics: [] };
+  return {
+    success: !hasBlockingDiagnostic(diagnostics),
+    data: result.data,
+    diagnostics,
+  };
 }
