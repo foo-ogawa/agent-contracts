@@ -332,7 +332,7 @@ Design regressions become testable.
 * **Guardrail generation** from DSL + policy + bindings via `generate guardrails`
 * **Flexible file splitting** via `$ref` (replacement), `$refs` (import + deep-merge), and JSON Pointer `$ref` (in-document)
 * **YAML safety linting** for reserved word collision detection across YAML 1.1/1.2
-* **`x-extensions` declarations** for documenting project-specific custom extension fields
+* **`extensions` declarations** with scope, schema validation, and strict enforcement for custom `x-*` fields
 * **`resolve --expand-defaults`** to materialize all Zod schema defaults in output
 * **DSL completeness scoring** with 7 dimensions, text/JSON output, and `--threshold` CI gate
 * **JSON Schema for editor support and external tooling**
@@ -373,15 +373,20 @@ guardrail_policies: {}
 components:
   schemas: {}
 
-# Optional: declare project-specific x-* extensions
-x-extensions:
+extensions:
   x-flags:
     type: array
     items: string
     description: "CLI flags for tool commands"
-  x-check-script:
+  x-path-hint:
     type: string
-    description: "Path to hook check script"
+    description: "Filesystem path hint"
+    scope: [artifact]
+    schema:
+      type: string
+      minLength: 1
+    required: true
+extensions_strict: false
 ````
 
 This makes definitions easy to merge, extend, and reference by stable identifiers.
@@ -612,22 +617,53 @@ tasks:
 `x-` prefixed custom properties work at any nesting level — including inside
 `execution_steps`, `rules`, `workflow.steps`, and other nested objects.
 
-### `x-extensions` declarations
+### Extension declarations
 
-Projects can optionally declare their custom `x-*` extension fields in the DSL using `x-extensions`. This makes extensions discoverable and self-documenting:
+Projects can declare their custom `x-*` extension fields in the DSL using `extensions`. This makes extensions discoverable, self-documenting, and — optionally — machine-validated:
 
 ````yaml
-x-extensions:
+extensions:
   x-flags:
     type: array
     items: string
     description: "CLI flags for tool commands"
-  x-check-script:
+  x-path-hint:
     type: string
-    description: "Path to hook check script"
+    description: "Filesystem path hint"
+    scope: [artifact]
+    schema:
+      type: string
+      minLength: 1
+    required: true
+
+extensions_strict: true  # undeclared x-* properties become errors
 ````
 
-Each key must start with `x-` (validated at schema level). The `type`, `items`, and `description` fields describe the expected shape. This declaration is informational today; future versions may validate `x-*` field values against their declared schemas.
+Each key must start with `x-` (validated at schema level). The declaration supports:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `string` | *(required)* | Informational type descriptor |
+| `items` | `string` | — | Item type (for array-typed extensions) |
+| `description` | `string` | — | Human-readable description |
+| `scope` | `string[]` | all node types | Restricts which DSL node types this extension may appear on |
+| `schema` | `object` | — | JSON Schema to validate the extension value |
+| `required` | `boolean` | `false` | Whether the extension must be present on every in-scope entity |
+
+**Scope values**: `root`, `system`, `agent`, `task`, `execution_step`, `artifact`, `tool`, `tool_command`, `validation`, `handoff_type`, `workflow`, `workflow_step`, `policy`, `guardrail`, `guardrail_policy`, `rule`, `escalation_criterion`, `prerequisite`
+
+**`extensions_strict`**: When `true`, any `x-*` property not declared in `extensions` is an error. When `false` (default), undeclared extensions produce a warning.
+
+**Diagnostics**:
+
+| Code | Severity | Trigger |
+|------|----------|---------|
+| `extension-scope-mismatch` | error | Extension used on a node type outside its declared `scope` |
+| `extension-schema-violation` | error | Extension value fails the declared JSON Schema |
+| `extension-required-missing` | error | Required extension missing on an in-scope entity |
+| `undeclared-extension` | warning/error | Extension not declared in `extensions` (error when `extensions_strict: true`) |
+
+> **Backward compatibility:** `x-extensions` and `x-extensions-strict` are still accepted as deprecated aliases. They produce a `deprecated-property` warning and are normalized to `extensions` / `extensions_strict` during validation.
 
 ---
 
@@ -1263,6 +1299,8 @@ Checks:
 * handoff schema shape (meta-validated as valid JSON Schema via ajv)
 * `allOf` composition in handoff schemas
 * invalid custom properties without `x-` prefix (checked at all nesting levels)
+* `extensions` declaration validation — scope, schema, required, and undeclared checks
+* `extensions_strict` enforcement — reject undeclared `x-*` properties when enabled
 
 Custom properties with `x-` prefix are allowed on any object in the DSL — top-level entities (agents, tasks, artifacts, …), nested objects (rules, execution steps, workflow steps, …), and the root DSL itself.
 
