@@ -829,6 +829,240 @@ describe("validateSchema — decision step routing_key", () => {
   });
 });
 
+function minimalDsl(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 1,
+    system: { id: "s", name: "S", default_workflow_order: [] },
+    agents: {
+      a1: { role_name: "R", purpose: "P" },
+    },
+    tasks: {
+      t1: {
+        description: "d",
+        target_agent: "a1",
+        allowed_from_agents: ["a1"],
+        workflow: "w",
+        input_artifacts: [],
+        invocation_handoff: "h1",
+        result_handoff: "h2",
+      },
+    },
+    handoff_types: {
+      h1: { version: 1, schema: {} },
+      h2: { version: 1, schema: {} },
+    },
+    workflow: { w: { steps: [] } },
+    ...overrides,
+  };
+}
+
+describe("validateSchema — extension validation", () => {
+  it("emits extension-scope-mismatch when extension scope is Agent but used on Task", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-only-agent": { type: "string", scope: ["Agent"] },
+      },
+      tasks: {
+        t1: {
+          description: "d",
+          target_agent: "a1",
+          allowed_from_agents: ["a1"],
+          workflow: "w",
+          input_artifacts: [],
+          invocation_handoff: "h1",
+          result_handoff: "h2",
+          "x-only-agent": "nope",
+        },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-scope-mismatch")).toBe(true);
+  });
+
+  it("emits extension-scope-mismatch for x-* on WorkflowStep when scope excludes it", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-agent-only": { type: "string", scope: ["Agent"] },
+      },
+      workflow: {
+        w: {
+          steps: [{ type: "handoff", handoff_kind: "k", "x-agent-only": "wrong" }],
+        },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-scope-mismatch")).toBe(true);
+  });
+
+  it("allows extension with scope Agent on Agent node", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-only-agent": { type: "string", scope: ["Agent"] },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-only-agent": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "extension-scope-mismatch")).toHaveLength(0);
+  });
+
+  it("emits extension-schema-violation when value breaks declared JSON Schema", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-label": { type: "string", schema: { type: "string", minLength: 1 } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-label": "" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-schema-violation")).toBe(true);
+  });
+
+  it("emits extension-schema-violation when declaration has invalid JSON Schema", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-bad": { type: "string", schema: { type: "invalid-type" } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-bad": "anything" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-schema-violation")).toBe(true);
+  });
+
+  it("passes when extension value conforms to declared schema", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-label": { type: "string", schema: { type: "string", minLength: 1 } },
+      },
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-label": "ok" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("emits extension-required-missing when required Artifact-scoped extension is absent", () => {
+    const data = minimalDsl({
+      artifacts: {
+        art1: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+        },
+      },
+      "x-extensions": {
+        "x-art-meta": { type: "string", required: true, scope: ["Artifact"] },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(false);
+    expect(result.diagnostics.some((d) => d.code === "extension-required-missing")).toBe(true);
+  });
+
+  it("passes when required Artifact-scoped extension is present on all artifacts", () => {
+    const data = minimalDsl({
+      artifacts: {
+        art1: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+          "x-art-meta": "m1",
+        },
+        art2: {
+          type: "code",
+          owner: "a1",
+          producers: ["a1"],
+          editors: ["a1"],
+          consumers: ["a1"],
+          states: ["draft"],
+          "x-art-meta": "m2",
+        },
+      },
+      "x-extensions": {
+        "x-art-meta": { type: "string", required: true, scope: ["Artifact"] },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code === "extension-required-missing")).toHaveLength(0);
+  });
+
+  it("warns with undeclared-extension for x-* key not listed in x-extensions", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-mystery": true },
+      },
+      "x-extensions": {
+        "x-known": { type: "string" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+    expect(result.diagnostics.find((d) => d.code === "undeclared-extension")?.severity).toBe("warning");
+  });
+
+  it("does not set success false when only undeclared-extension warnings exist", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-not-listed": "v" },
+      },
+      "x-extensions": {
+        "x-other": { type: "string" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.some((d) => d.code === "undeclared-extension")).toBe(true);
+  });
+
+  it("accepts legacy x-extensions entries with only type, items, and description", () => {
+    const data = minimalDsl({
+      "x-extensions": {
+        "x-flags": { type: "array", items: "string", description: "flags" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(result.diagnostics.filter((d) => d.code.startsWith("extension-"))).toHaveLength(0);
+  });
+
+  it("skips extension validation when x-extensions is absent even if x-* properties exist", () => {
+    const data = minimalDsl({
+      agents: {
+        a1: { role_name: "R", purpose: "P", "x-freeform": "yes" },
+      },
+    });
+    const result = validateSchema(data);
+    expect(result.success).toBe(true);
+    expect(
+      result.diagnostics.filter(
+        (d) =>
+          d.code === "undeclared-extension" ||
+          d.code === "extension-scope-mismatch" ||
+          d.code === "extension-schema-violation" ||
+          d.code === "extension-required-missing",
+      ),
+    ).toHaveLength(0);
+  });
+});
+
 describe("validateSchema — x-extensions key validation", () => {
   it("accepts x-extensions with x- prefixed keys", () => {
     const data = {

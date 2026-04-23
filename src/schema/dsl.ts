@@ -23,6 +23,31 @@ export const ComponentsSchema = z
   .passthrough();
 export type Components = z.infer<typeof ComponentsSchema>;
 
+export const SCOPE_NODE_TYPES = [
+  "Root",
+  "System",
+  "Agent",
+  "Task",
+  "ExecutionStep",
+  "Artifact",
+  "Tool",
+  "ToolCommand",
+  "Validation",
+  "HandoffType",
+  "Workflow",
+  "WorkflowStep",
+  "Policy",
+  "Guardrail",
+  "GuardrailPolicy",
+  "Rule",
+  "EscalationCriterion",
+  "Prerequisite",
+] as const;
+
+export type ScopeNodeType = (typeof SCOPE_NODE_TYPES)[number];
+
+export const ScopeNodeTypeSchema = z.enum(SCOPE_NODE_TYPES);
+
 /**
  * Declaration of project-specific `x-*` extension fields.
  * Each key must start with `x-` and describes the expected type/shape
@@ -32,6 +57,9 @@ export const XExtensionDeclSchema = z.object({
   type: z.string(),
   items: z.string().optional(),
   description: z.string().optional(),
+  scope: z.array(ScopeNodeTypeSchema).optional(),
+  schema: z.record(z.string(), z.any()).optional(),
+  required: z.boolean().default(false),
 });
 export type XExtensionDecl = z.infer<typeof XExtensionDeclSchema>;
 

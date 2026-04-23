@@ -1171,10 +1171,48 @@
           },
           "description": {
             "type": "string"
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "Root",
+                "System",
+                "Agent",
+                "Task",
+                "ExecutionStep",
+                "Artifact",
+                "Tool",
+                "ToolCommand",
+                "Validation",
+                "HandoffType",
+                "Workflow",
+                "WorkflowStep",
+                "Policy",
+                "Guardrail",
+                "GuardrailPolicy",
+                "Rule",
+                "EscalationCriterion",
+                "Prerequisite"
+              ]
+            }
+          },
+          "schema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
-          "type"
+          "type",
+          "required"
         ],
         "additionalProperties": false
       }
