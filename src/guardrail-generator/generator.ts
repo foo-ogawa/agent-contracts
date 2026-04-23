@@ -6,13 +6,21 @@ import type { Dsl } from "../schema/index.js";
 import type { ResolvedConfig } from "../config/types.js";
 import type { LoadedBinding } from "../config/binding-loader.js";
 import type { BindingOutput } from "../schema/index.js";
+import type { ContextType } from "../schema/context-type.js";
 import type {
-  GuardrailGenerationContext,
+  BindingGenerationContext,
   GenerateResult,
   GenerateDiagnostic,
 } from "./types.js";
 import { resolveChecks } from "./resolve-checks.js";
 import { resolveBindingTargetPath } from "./resolve-paths.js";
+import {
+  buildEntityContext,
+  buildSystemContext,
+  getDslSection,
+  filterIds,
+  expandOutputPath,
+} from "../renderer/index.js";
 
 // Register the `json` template helper
 Handlebars.registerHelper("json", (value: unknown) => {
@@ -176,7 +184,7 @@ export async function generateGuardrails(
   }
 
   // Find reporting binding (one with `reporting` section)
-  let reporting: GuardrailGenerationContext["reporting"] = null;
+  let reporting: BindingGenerationContext["reporting"] = null;
   for (const lb of loadedBindings) {
     if (lb.binding.reporting) {
       reporting = {
@@ -199,14 +207,14 @@ export async function generateGuardrails(
       continue;
     }
 
-    if (!binding.outputs) continue;
+    if (!binding.outputs && !binding.renders) continue;
 
     // Resolve checks for this binding
     const checkResult = resolveChecks(dsl, binding, policy);
     diagnostics.push(...checkResult.diagnostics);
 
     // Build generation context
-    const ctx: GuardrailGenerationContext = {
+    const ctx: BindingGenerationContext = {
       system: { id: dsl.system.id, name: dsl.system.name },
       guardrails: dsl.guardrails,
       policy,
@@ -216,10 +224,15 @@ export async function generateGuardrails(
       paths,
       reporting,
       resolved_checks: checkResult.resolved,
+      tasks: dsl.tasks,
+      artifacts: dsl.artifacts,
+      agents: dsl.agents,
+      handoff_types: dsl.handoff_types,
+      workflow: dsl.workflow,
     };
 
     // Process each output
-    for (const [outputId, outputDef] of Object.entries(binding.outputs)) {
+    for (const [outputId, outputDef] of Object.entries(binding.outputs ?? {})) {
       // Resolve target path
       const pathResult = resolveBindingTargetPath(
         outputDef.target,
@@ -365,7 +378,109 @@ export async function generateGuardrails(
         }
       }
     }
+
+    // Process binding renders (entity-iteration rendering with full DSL context)
+    for (const renderTarget of binding.renders ?? []) {
+      let templateContent: string;
+      if (renderTarget.inline_template) {
+        templateContent = renderTarget.inline_template;
+      } else if (renderTarget.template) {
+        const templatePath = resolve(config.configDir, renderTarget.template);
+        try {
+          templateContent = await readFile(templatePath, "utf8");
+        } catch {
+          diagnostics.push({
+            path: `binding.${binding.software}.renders`,
+            message: `Template file not found: ${templatePath}`,
+            severity: "error",
+          });
+          continue;
+        }
+      } else {
+        diagnostics.push({
+          path: `binding.${binding.software}.renders`,
+          message: "Render target has neither template nor inline_template",
+          severity: "error",
+        });
+        continue;
+      }
+
+      const compiled = Handlebars.compile(templateContent, { noEscape: true });
+      const shouldSkipEmpty = renderTarget.skip_empty === true;
+      const context = renderTarget.context as ContextType;
+
+      if (context === "system") {
+        const sysCtx = buildSystemContext(dsl);
+        const mergedCtx = { ...sysCtx, vars, paths, binding, resolved_checks: checkResult.resolved };
+        const rendered = compiled(mergedCtx);
+
+        const resolvedOutput = resolveBindingRenderOutputPath(renderTarget.output, paths);
+        const outputPath = resolve(config.configDir, resolvedOutput);
+
+        if (shouldSkipEmpty && rendered.trim().length === 0) {
+          if (!dryRun) {
+            try { await unlink(outputPath); } catch { /* not found */ }
+          }
+          continue;
+        }
+
+        if (!dryRun) {
+          await mkdir(dirname(outputPath), { recursive: true });
+          await writeFile(outputPath, rendered, "utf8");
+          if (renderTarget.executable) {
+            await chmod(outputPath, 0o755);
+          }
+        }
+        outputFiles.push(outputPath);
+      } else {
+        const section = getDslSection(dsl, context);
+        const allIds = Object.keys(section);
+        const ids = filterIds(allIds, renderTarget.include, renderTarget.exclude);
+
+        for (const entityId of ids) {
+          const entityCtx = buildEntityContext(dsl, context, entityId);
+          const mergedCtx = { ...entityCtx, vars, paths, binding, resolved_checks: checkResult.resolved };
+          const rendered = compiled(mergedCtx);
+
+          const resolvedOutput = resolveBindingRenderOutputPath(
+            expandOutputPath(renderTarget.output, context, entityId),
+            paths,
+          );
+          const outputPath = resolve(config.configDir, resolvedOutput);
+
+          if (shouldSkipEmpty && rendered.trim().length === 0) {
+            if (!dryRun) {
+              try { await unlink(outputPath); } catch { /* not found */ }
+            }
+            continue;
+          }
+
+          if (!dryRun) {
+            await mkdir(dirname(outputPath), { recursive: true });
+            await writeFile(outputPath, rendered, "utf8");
+            if (renderTarget.executable) {
+              await chmod(outputPath, 0o755);
+            }
+          }
+          outputFiles.push(outputPath);
+        }
+      }
+    }
   }
 
   return { outputFiles, diagnostics };
+}
+
+/**
+ * Resolve path variables ({name}) from config.paths in binding render output paths.
+ * Uses the same {var} syntax as binding outputs target paths.
+ */
+function resolveBindingRenderOutputPath(
+  output: string,
+  paths: Record<string, string>,
+): string {
+  return output.replace(/\{(\w+)\}/g, (match, varName: string) => {
+    const value = paths[varName];
+    return value !== undefined ? value : match;
+  });
 }

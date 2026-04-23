@@ -60,6 +60,7 @@ export {
   resolveBindingTargetPath,
   type GenerateGuardrailsOptions,
   type ResolvedCheck,
+  type BindingGenerationContext,
   type GuardrailGenerationContext,
   type GenerateResult,
   type GenerateDiagnostic,

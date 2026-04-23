@@ -1166,7 +1166,7 @@ guardrail_policies:
 
 ### Software bindings
 
-Bindings define software-specific check implementations:
+Bindings define software-specific check implementations, output generation, and rendering:
 
 ````yaml
 # bindings/cursor.yaml
@@ -1188,6 +1188,19 @@ outputs:
     mode: write
     executable: true
     template: ./templates/cursor-hook-wrapper.sh.hbs
+
+renders:
+  - context: agent
+    output: "{cursor_root}/agent-team/{agent.id}.md"
+    template: ./templates/agent-prompt.md.hbs
+    exclude:
+      - architect
+  - context: system
+    output: "{cursor_root}/rules/agent-team.mdc"
+    inline_template: |
+      {{#each agents}}
+      - {{@key}}: {{this.role_name}}
+      {{/each}}
 ````
 
 ### Binding inheritance
@@ -1244,6 +1257,7 @@ Merge behavior:
 | `software` | Project wins |
 | `guardrail_impl` | Map merge by guardrail ID (new IDs added; same ID deep-merged) |
 | `outputs` | Map merge by output ID (project overrides base) |
+| `renders` | Array concatenation (base renders + project renders) |
 | `reporting` | Deep merge (project fields override base) |
 | passthrough fields | Project wins |
 
@@ -1274,6 +1288,62 @@ paths:
   cursor_root: .cursor
   git_hooks_root: scripts/git-hooks
 ````
+
+### Binding template context
+
+Both `outputs` and `renders` templates have access to the full binding generation context:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `system` | `{ id, name }` | System metadata |
+| `guardrails` | `Record<string, Guardrail>` | All guardrail definitions |
+| `policy` | `GuardrailPolicy` | Active guardrail policy |
+| `binding` | `SoftwareBinding` | Current binding |
+| `all_bindings` | `Record<string, SoftwareBinding>` | All loaded bindings |
+| `vars` | `Record<string, string>` | Variables from `config.vars` |
+| `paths` | `Record<string, string>` | Path variables from `config.paths` |
+| `reporting` | `{ commands, fail_open, timeout_ms } \| null` | Reporting config |
+| `resolved_checks` | `ResolvedCheck[]` | Resolved guardrail checks |
+| `tasks` | `Record<string, Task>` | All DSL tasks |
+| `artifacts` | `Record<string, Artifact>` | All DSL artifacts |
+| `agents` | `Record<string, Agent>` | All DSL agents |
+| `handoff_types` | `Record<string, HandoffType>` | All DSL handoff types |
+| `workflow` | `Record<string, Workflow>` | All DSL workflows |
+
+DSL entities include passthrough fields (`x-*` extensions), so custom metadata defined in the DSL is accessible in templates (e.g., `{{agents.implementer.x-team}}`).
+
+### Binding renders
+
+Binding `renders` provide entity-iteration rendering with full DSL context — the same capability as config-level `renders`, but defined within binding YAML files.
+
+Each render target specifies a `context` type and an `output` path pattern:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `context` | yes | Entity type: `agent`, `task`, `artifact`, `tool`, `workflow`, `system`, etc. |
+| `output` | yes | Output path with `{entity.id}` and `{paths_var}` expansion |
+| `template` | one of | Path to external `.hbs` template file |
+| `inline_template` | one of | Inline Handlebars template string |
+| `include` | no | Only render these entity IDs |
+| `exclude` | no | Skip these entity IDs |
+| `skip_empty` | no | Delete target if rendered output is empty |
+| `executable` | no | Set file permissions to 0755 |
+
+For non-`system` contexts, one file is generated per entity (filtered by `include`/`exclude`). The output path supports two types of variable expansion:
+
+- `{agent.id}`, `{task.id}`, etc. — replaced with the current entity ID
+- `{cursor_root}`, `{observability_root}`, etc. — replaced from `config.paths`
+
+**When to use binding renders vs config renders vs binding outputs:**
+
+| Use case | Recommended |
+|----------|-------------|
+| Generate per-entity files (agent prompts, workflow docs) | Binding `renders` or config `renders` |
+| Generate guardrail/policy runtime artifacts | Binding `outputs` |
+| Generate files using DSL data + guardrail data | Binding `renders` (has both) |
+| Simple config without bindings | Config `renders` |
+
+Config `renders` remains supported and is not deprecated. Binding `renders` offers the advantage of co-locating templates with their binding definition and having access to the full binding context (`vars`, `paths`, `resolved_checks`, etc.) in addition to DSL entities.
 
 ### Generate command
 

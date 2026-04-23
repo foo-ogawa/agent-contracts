@@ -845,7 +845,7 @@ agent-contracts generate guardrails -c agent-contracts.config.yaml --binding cur
    d. Validate merged result against `SoftwareBindingSchema`
 5. Run cross-reference checks (binding keys → DSL guardrails, policy → guardrails)
 6. For each binding with `outputs`:
-   a. Resolve the `GuardrailGenerationContext` (see section 9)
+   a. Resolve the `BindingGenerationContext` (see section 9)
    b. For each output entry, resolve the target path (section 5)
    c. Render using inline or external template
    d. Write output (mode: `write` replaces, `patch` merges)
@@ -885,9 +885,9 @@ This enables `context: guardrail` and `context: guardrail_policy` in render targ
 
 ## 9. Generation Context
 
-### 9.1 GuardrailGenerationContext
+### 9.1 BindingGenerationContext
 
-Passed to each binding's templates during `generate guardrails`:
+Passed to each binding's `outputs` and `renders` templates during `generate guardrails`:
 
 ```typescript
 interface ResolvedCheck {
@@ -897,8 +897,8 @@ interface ResolvedCheck {
   check: Check;   // CheckSchema instance with passthrough fields
 }
 
-interface GuardrailGenerationContext {
-  system: System;
+interface BindingGenerationContext {
+  system: { id: string; name: string };
   guardrails: Record<string, Guardrail>;
   policy: GuardrailPolicy;
   binding: SoftwareBinding;
@@ -911,6 +911,13 @@ interface GuardrailGenerationContext {
     timeout_ms: number;
   } | null;
   resolved_checks: ResolvedCheck[];
+
+  // DSL entity maps
+  tasks: Record<string, Task>;
+  artifacts: Record<string, Artifact>;
+  agents: Record<string, Agent>;
+  handoff_types: Record<string, HandoffType>;
+  workflow: Record<string, Workflow>;
 }
 ```
 

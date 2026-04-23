@@ -1,6 +1,10 @@
 export {
   renderFromConfig,
   checkDriftFromConfig,
+  buildEntityContext,
+  getDslSection,
+  filterIds,
+  expandOutputPath,
   type RenderOptions,
 } from "./renderer.js";
 export {
