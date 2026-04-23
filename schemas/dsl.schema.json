@@ -1155,7 +1155,8 @@
       ],
       "additionalProperties": {}
     },
-    "x-extensions": {
+    "extensions": {
+      "default": {},
       "type": "object",
       "propertyNames": {
         "type": "string"
@@ -1217,7 +1218,7 @@
         "additionalProperties": false
       }
     },
-    "x-extensions-strict": {
+    "extensions_strict": {
       "default": false,
       "type": "boolean"
     }
@@ -1236,7 +1237,8 @@
     "guardrails",
     "guardrail_policies",
     "components",
-    "x-extensions-strict"
+    "extensions",
+    "extensions_strict"
   ],
   "additionalProperties": {}
 }

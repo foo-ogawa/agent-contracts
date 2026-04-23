@@ -99,16 +99,16 @@ function checkCustomPropsRecursive(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function checkXExtensionsKeys(
+function checkExtensionsKeys(
   data: Record<string, unknown>,
 ): DiagnosticMessage[] {
-  const extensions = data["x-extensions"];
+  const extensions = data["extensions"];
   if (typeof extensions !== "object" || extensions === null) return [];
   const diagnostics: DiagnosticMessage[] = [];
   for (const key of Object.keys(extensions as Record<string, unknown>)) {
     if (!key.startsWith("x-")) {
       diagnostics.push({
-        path: `x-extensions.${key}`,
+        path: `extensions.${key}`,
         message: `Extension key "${key}" must start with "x-" prefix.`,
         code: "x-extension-key-prefix",
       });
@@ -373,7 +373,7 @@ function validateDeclaredExtension(
   if (decl === undefined) {
     diagnostics.push({
       path,
-      message: `Extension "${key}" is not declared in x-extensions.`,
+      message: `Extension "${key}" is not declared in extensions.`,
       code: "undeclared-extension",
       ...(!strict ? { severity: "warning" as const } : {}),
     });
@@ -426,7 +426,14 @@ function walkExtensionNodes(
   const obj = value;
 
   for (const key of Object.keys(obj)) {
-    if (key === "x-extensions" || key === "x-extensions-strict") continue;
+    if (
+      key === "extensions" ||
+      key === "extensions_strict" ||
+      key === "x-extensions" ||
+      key === "x-extensions-strict"
+    ) {
+      continue;
+    }
     if (key.startsWith("x-")) {
       validateDeclaredExtension(
         path,
@@ -739,8 +746,8 @@ function walkExtensionNodes(
 function checkExtensionValidation(
   data: Record<string, unknown>,
 ): DiagnosticMessage[] {
-  const strict = data["x-extensions-strict"] === true;
-  const raw = data["x-extensions"];
+  const strict = data["extensions_strict"] === true;
+  const raw = data["extensions"];
   let declMap: ExtensionDeclMap;
   if (!isRecord(raw) || Object.keys(raw).length === 0) {
     if (!strict) return [];
@@ -784,21 +791,48 @@ function hasBlockingDiagnostic(diagnostics: DiagnosticMessage[]): boolean {
 export function validateSchema(
   data: Record<string, unknown>,
 ): SchemaValidationResult {
+  const deprecationWarnings: DiagnosticMessage[] = [];
+
+  if ("x-extensions" in data && !("extensions" in data)) {
+    data["extensions"] = data["x-extensions"];
+    deprecationWarnings.push({
+      path: "x-extensions",
+      message: '"x-extensions" is deprecated. Use "extensions" instead.',
+      code: "deprecated-property",
+      severity: "warning",
+    });
+  }
+
+  if ("x-extensions-strict" in data && !("extensions_strict" in data)) {
+    data["extensions_strict"] = data["x-extensions-strict"];
+    deprecationWarnings.push({
+      path: "x-extensions-strict",
+      message:
+        '"x-extensions-strict" is deprecated. Use "extensions_strict" instead.',
+      code: "deprecated-property",
+      severity: "warning",
+    });
+  }
+
   const result = DslSchema.safeParse(data);
 
   if (!result.success) {
-    const diagnostics: DiagnosticMessage[] = result.error.issues.map((issue) => ({
-      path: issue.path.join("."),
-      message: issue.message,
-      code: "schema-validation",
-    }));
+    const diagnostics: DiagnosticMessage[] = [
+      ...deprecationWarnings,
+      ...result.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+        code: "schema-validation",
+      })),
+    ];
     return { success: false, diagnostics };
   }
 
   const diagnostics: DiagnosticMessage[] = [
+    ...deprecationWarnings,
     ...checkCustomPropsRecursive(data, DslSchema, ""),
     ...checkDecisionStepRoutingKey(data),
-    ...checkXExtensionsKeys(data),
+    ...checkExtensionsKeys(data),
     ...checkExtensionValidation(data),
   ];
 

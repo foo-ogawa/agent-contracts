@@ -81,10 +81,10 @@ export const DslSchema = z
       .record(z.string(), GuardrailPolicySchema)
       .default({}),
     components: ComponentsSchema.default({ schemas: {} }),
-    "x-extensions": z
+    extensions: z
       .record(z.string(), XExtensionDeclSchema)
-      .optional(),
-    "x-extensions-strict": z.boolean().default(false),
+      .default({}),
+    extensions_strict: z.boolean().default(false),
   })
   .passthrough();
 export type Dsl = z.infer<typeof DslSchema>;

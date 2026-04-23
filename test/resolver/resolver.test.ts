@@ -220,23 +220,23 @@ describe("mergeDsl", () => {
     expect(agents["agent-1"]["role_name"]).toBe("R");
   });
 
-  it("deep-merges x-extensions with per-key override from project", () => {
+  it("deep-merges extensions with per-key override from project", () => {
     const baseWithExt = {
       ...base,
-      "x-extensions": {
+      extensions: {
         "x-a": { type: "string", description: "from base a" },
         "x-b": { type: "string", description: "from base b" },
       },
     };
     const project = {
       extends: "./base/",
-      "x-extensions": {
+      extensions: {
         "x-b": { type: "string", description: "from project b" },
         "x-c": { type: "number", description: "from project c" },
       },
     };
     const result = mergeDsl(baseWithExt, project);
-    const xext = result["x-extensions"] as Record<string, Record<string, unknown>>;
+    const xext = result["extensions"] as Record<string, Record<string, unknown>>;
     expect(Object.keys(xext).sort()).toEqual(["x-a", "x-b", "x-c"]);
     expect(xext["x-a"]["description"]).toBe("from base a");
     expect(xext["x-b"]["description"]).toBe("from project b");

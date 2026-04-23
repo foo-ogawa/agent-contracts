@@ -862,7 +862,8 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
     expect(props).toHaveProperty("policies");
     expect(props).toHaveProperty("guardrails");
     expect(props).toHaveProperty("guardrail_policies");
-    expect(props).toHaveProperty("x-extensions-strict");
+    expect(props).toHaveProperty("extensions");
+    expect(props).toHaveProperty("extensions_strict");
     expect(raw.required).toEqual([
       "version",
       "system",
@@ -877,7 +878,8 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
       "guardrails",
       "guardrail_policies",
       "components",
-      "x-extensions-strict",
+      "extensions",
+      "extensions_strict",
     ]);
   });
 
