@@ -308,7 +308,7 @@ export interface RenderOptions {
   activeGuardrailPolicy?: string;
 }
 
-function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> {
+export function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> {
   const sectionMap: Record<string, Record<string, unknown>> = {
     agent: dsl.agents,
     task: dsl.tasks,
@@ -324,7 +324,7 @@ function getDslSection(dsl: Dsl, context: ContextType): Record<string, unknown> 
   return sectionMap[context] ?? {};
 }
 
-function filterIds(
+export function filterIds(
   allIds: string[],
   include?: string[],
   exclude?: string[],
@@ -334,11 +334,11 @@ function filterIds(
   return allIds;
 }
 
-function expandOutputPath(pattern: string, context: ContextType, entityId: string): string {
+export function expandOutputPath(pattern: string, context: ContextType, entityId: string): string {
   return pattern.replace(new RegExp(`\\{${context}\\.id\\}`, "g"), entityId);
 }
 
-function buildEntityContext(
+export function buildEntityContext(
   dsl: Dsl,
   context: ContextType,
   entityId: string,

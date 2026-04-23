@@ -192,4 +192,60 @@ describe("mergeBinding", () => {
     expect(result["x-base-meta"]).toBe("from-base");
     expect(result["x-proj-meta"]).toBe("from-proj");
   });
+
+  it("concatenates renders arrays from base and project", () => {
+    const base = {
+      software: "cursor",
+      version: 1,
+      renders: [
+        { context: "system", output: "sys.md", inline_template: "base" },
+      ],
+    };
+    const project = {
+      extends: "./base.yaml",
+      software: "cursor",
+      version: 1,
+      renders: [
+        { context: "agent", output: "{agent.id}.md", inline_template: "proj" },
+      ],
+    };
+    const result = mergeBinding(base, project);
+    const renders = result["renders"] as unknown[];
+    expect(renders).toHaveLength(2);
+    expect(renders[0]).toEqual(expect.objectContaining({ context: "system" }));
+    expect(renders[1]).toEqual(expect.objectContaining({ context: "agent" }));
+  });
+
+  it("uses only project renders when base has none", () => {
+    const base = { software: "cursor", version: 1 };
+    const project = {
+      extends: "./base.yaml",
+      software: "cursor",
+      version: 1,
+      renders: [
+        { context: "system", output: "out.md", inline_template: "only-proj" },
+      ],
+    };
+    const result = mergeBinding(base, project);
+    const renders = result["renders"] as unknown[];
+    expect(renders).toHaveLength(1);
+  });
+
+  it("keeps base renders when project has none", () => {
+    const base = {
+      software: "cursor",
+      version: 1,
+      renders: [
+        { context: "system", output: "out.md", inline_template: "only-base" },
+      ],
+    };
+    const project = {
+      extends: "./base.yaml",
+      software: "cursor",
+      version: 1,
+    };
+    const result = mergeBinding(base, project);
+    const renders = result["renders"] as unknown[];
+    expect(renders).toHaveLength(1);
+  });
 });

@@ -11,16 +11,24 @@ export {
 export { ArtifactSchema, type Artifact } from "./artifact.js";
 export {
   BindingOutputSchema,
+  BindingRenderTargetSchema,
   CheckSchema,
   MatcherSchema,
   ReportingSchema,
   SoftwareBindingSchema,
   type BindingOutput,
+  type BindingRenderTarget,
   type Check,
   type Matcher,
   type Reporting,
   type SoftwareBinding,
 } from "./binding.js";
+export {
+  CONTEXT_TYPES,
+  ContextTypeSchema,
+  ITERABLE_CONTEXT_TYPES,
+  type ContextType,
+} from "./context-type.js";
 export {
   ComponentsSchema,
   DslSchema,

@@ -1,25 +1,13 @@
 import { z } from "zod";
 
-export const CONTEXT_TYPES = [
-  "agent",
-  "task",
-  "artifact",
-  "tool",
-  "validation",
-  "handoff_type",
-  "workflow",
-  "policy",
-  "guardrail",
-  "guardrail_policy",
-  "system",
-] as const;
+export {
+  CONTEXT_TYPES,
+  ContextTypeSchema,
+  ITERABLE_CONTEXT_TYPES,
+  type ContextType,
+} from "../schema/context-type.js";
 
-export const ContextTypeSchema = z.enum(CONTEXT_TYPES);
-export type ContextType = z.infer<typeof ContextTypeSchema>;
-
-export const ITERABLE_CONTEXT_TYPES = CONTEXT_TYPES.filter(
-  (t): t is Exclude<ContextType, "system"> => t !== "system",
-);
+import { ContextTypeSchema, type ContextType } from "../schema/context-type.js";
 
 export const RenderTargetSchema = z
   .object({
@@ -49,7 +37,7 @@ export type RenderTarget = z.infer<typeof RenderTargetSchema>;
 export const AgentContractsConfigSchema = z.object({
   dsl: z.string(),
   vars: z.record(z.string(), z.string()).optional(),
-  renders: z.array(RenderTargetSchema).min(1),
+  renders: z.array(RenderTargetSchema).default([]),
   bindings: z.array(z.string()).default([]),
   active_guardrail_policy: z.string().optional(),
   paths: z.record(z.string(), z.string()).optional(),

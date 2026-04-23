@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BindingOutputSchema,
+  BindingRenderTargetSchema,
   CheckSchema,
   GuardrailPolicyRuleEscalationSchema,
   GuardrailPolicyRuleSchema,
@@ -547,5 +548,116 @@ describe("SoftwareBindingSchema", () => {
       "x-binding-meta": "extra",
     });
     expect((b as Record<string, unknown>)["x-binding-meta"]).toBe("extra");
+  });
+
+  it("accepts renders array in binding", () => {
+    const b = SoftwareBindingSchema.parse({
+      software: "cursor",
+      version: 1,
+      renders: [
+        {
+          context: "agent",
+          output: "{cursor_root}/{agent.id}.md",
+          inline_template: "# {{agent.role_name}}",
+        },
+        {
+          context: "system",
+          output: "sys.md",
+          template: "./templates/sys.hbs",
+        },
+      ],
+    });
+    expect(b.renders).toHaveLength(2);
+    expect(b.renders![0].context).toBe("agent");
+    expect(b.renders![1].context).toBe("system");
+  });
+
+  it("accepts binding with no renders", () => {
+    const b = SoftwareBindingSchema.parse({
+      software: "s",
+      version: 1,
+    });
+    expect(b.renders).toBeUndefined();
+  });
+});
+
+describe("BindingRenderTargetSchema", () => {
+  it("parses valid render target with inline_template", () => {
+    const r = BindingRenderTargetSchema.parse({
+      context: "agent",
+      output: "{out}/{agent.id}.md",
+      inline_template: "# {{agent.role_name}}",
+    });
+    expect(r.context).toBe("agent");
+    expect(r.inline_template).toContain("role_name");
+  });
+
+  it("parses valid render target with template file", () => {
+    const r = BindingRenderTargetSchema.parse({
+      context: "system",
+      output: "out.md",
+      template: "./templates/sys.hbs",
+    });
+    expect(r.template).toBe("./templates/sys.hbs");
+  });
+
+  it("rejects when both template and inline_template are set", () => {
+    const r = BindingRenderTargetSchema.safeParse({
+      context: "system",
+      output: "out.md",
+      template: "t.hbs",
+      inline_template: "x",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when neither template nor inline_template is set", () => {
+    const r = BindingRenderTargetSchema.safeParse({
+      context: "system",
+      output: "out.md",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when both include and exclude are set", () => {
+    const r = BindingRenderTargetSchema.safeParse({
+      context: "agent",
+      output: "{agent.id}.md",
+      inline_template: "x",
+      include: ["a"],
+      exclude: ["b"],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects include/exclude with system context", () => {
+    const r = BindingRenderTargetSchema.safeParse({
+      context: "system",
+      output: "out.md",
+      inline_template: "x",
+      include: ["a"],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts all valid context types", () => {
+    for (const ctx of ["agent", "task", "artifact", "tool", "workflow", "system"]) {
+      const r = BindingRenderTargetSchema.safeParse({
+        context: ctx,
+        output: "out.md",
+        inline_template: "x",
+      });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  it("allows passthrough fields", () => {
+    const r = BindingRenderTargetSchema.parse({
+      context: "system",
+      output: "out.md",
+      inline_template: "x",
+      "x-custom": "meta",
+    });
+    expect((r as Record<string, unknown>)["x-custom"]).toBe("meta");
   });
 });

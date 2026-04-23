@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ContextTypeSchema } from "./context-type.js";
 
 const CommandRegexMatcherSchema = z
   .object({
@@ -78,6 +79,40 @@ const GuardrailImplSchema = z.object({
   checks: z.array(CheckSchema),
 });
 
+export const BindingRenderTargetSchema = z
+  .object({
+    template: z.string().optional(),
+    inline_template: z.string().optional(),
+    context: ContextTypeSchema,
+    output: z.string(),
+    include: z.array(z.string()).optional(),
+    exclude: z.array(z.string()).optional(),
+    skip_empty: z.boolean().optional(),
+    executable: z.boolean().optional(),
+  })
+  .passthrough()
+  .refine(
+    (data) => {
+      const count = [data.template, data.inline_template].filter(Boolean).length;
+      return count === 1;
+    },
+    { message: "Exactly one of template or inline_template must be specified" },
+  )
+  .refine(
+    (data) => !(data.include && data.exclude),
+    { message: "include and exclude are mutually exclusive" },
+  )
+  .refine(
+    (data) => {
+      if (data.context === "system" && (data.include || data.exclude)) {
+        return false;
+      }
+      return true;
+    },
+    { message: "include/exclude cannot be used with context: system" },
+  );
+export type BindingRenderTarget = z.infer<typeof BindingRenderTargetSchema>;
+
 export const SoftwareBindingSchema = z
   .object({
     software: z.string(),
@@ -85,6 +120,7 @@ export const SoftwareBindingSchema = z
     extends: z.string().optional(),
     guardrail_impl: z.record(z.string(), GuardrailImplSchema).optional(),
     outputs: z.record(z.string(), BindingOutputSchema).optional(),
+    renders: z.array(BindingRenderTargetSchema).optional(),
     reporting: ReportingSchema.optional(),
   })
   .passthrough();

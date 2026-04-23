@@ -6,7 +6,8 @@ function isRecord(v: unknown): v is AnyRecord {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-const BINDING_MERGE_SECTIONS = ["guardrail_impl", "outputs"];
+const BINDING_MAP_MERGE_SECTIONS = ["guardrail_impl", "outputs"];
+const BINDING_ARRAY_MERGE_SECTIONS = ["renders"];
 
 export function mergeBinding(
   base: AnyRecord,
@@ -15,7 +16,7 @@ export function mergeBinding(
   const hasExtends = typeof project["extends"] === "string";
   const result: AnyRecord = { ...base, ...project };
 
-  for (const section of BINDING_MERGE_SECTIONS) {
+  for (const section of BINDING_MAP_MERGE_SECTIONS) {
     const baseVal = base[section];
     const projVal = project[section];
 
@@ -30,6 +31,17 @@ export function mergeBinding(
       section,
       hasExtends,
     );
+  }
+
+  for (const section of BINDING_ARRAY_MERGE_SECTIONS) {
+    const baseVal = base[section];
+    const projVal = project[section];
+
+    if (projVal === undefined) continue;
+
+    const baseArr = Array.isArray(baseVal) ? baseVal : [];
+    const projArr = Array.isArray(projVal) ? projVal : [];
+    result[section] = [...baseArr, ...projArr];
   }
 
   // reporting: deep merge when both sides are objects, otherwise project wins

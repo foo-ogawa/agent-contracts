@@ -837,3 +837,422 @@ describe("generateGuardrails patch merge (issue #13)", () => {
     expect(body).toEqual({ a: 1, b: 2 });
   });
 });
+
+function dslWithEntities(): Dsl {
+  return minimalDsl({
+    agents: {
+      implementer: {
+        role_name: "Implementer",
+        purpose: "Implement features",
+        "x-team": "alpha",
+      },
+      reviewer: {
+        role_name: "Reviewer",
+        purpose: "Review code",
+      },
+    },
+    tasks: {
+      "implement-feature": {
+        description: "Implement a feature",
+        target_agent: "implementer",
+        allowed_from_agents: ["reviewer"],
+        workflow: "dev",
+        input_artifacts: [],
+        invocation_handoff: "task-handoff",
+        result_handoff: "task-handoff",
+      },
+    },
+    artifacts: {
+      "source-code": {
+        type: "file",
+        description: "Source code files",
+        owner: "implementer",
+        producers: ["implementer"],
+        consumers: ["reviewer"],
+        editors: [],
+        states: ["draft", "final"],
+      },
+    },
+    handoff_types: {
+      "task-handoff": {
+        version: 1,
+        description: "Standard task handoff",
+        schema: { type: "object", properties: {} },
+      },
+    },
+    workflow: {
+      dev: {
+        description: "Development workflow",
+        steps: [],
+      },
+    },
+  });
+}
+
+describe("DSL entities in binding output context", () => {
+  it("exposes tasks in inline_template via {{#each tasks}}", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/tasks.txt",
+        inline_template: "{{#each tasks}}{{@key}}: {{this.description}}\n{{/each}}",
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = await readFile(join(configDir, "hooks", "tasks.txt"), "utf8");
+    expect(body).toContain("implement-feature: Implement a feature");
+  });
+
+  it("exposes agents in inline_template via {{#each agents}}", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/agents.txt",
+        inline_template: "{{#each agents}}{{@key}}: {{this.role_name}}\n{{/each}}",
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = await readFile(join(configDir, "hooks", "agents.txt"), "utf8");
+    expect(body).toContain("implementer: Implementer");
+    expect(body).toContain("reviewer: Reviewer");
+  });
+
+  it("exposes artifacts, handoff_types, and workflow", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/all.txt",
+        inline_template: [
+          "artifacts:{{#each artifacts}} {{@key}}{{/each}}",
+          "handoffs:{{#each handoff_types}} {{@key}}{{/each}}",
+          "workflows:{{#each workflow}} {{@key}}{{/each}}",
+        ].join("\n"),
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = await readFile(join(configDir, "hooks", "all.txt"), "utf8");
+    expect(body).toContain("artifacts: source-code");
+    expect(body).toContain("handoffs: task-handoff");
+    expect(body).toContain("workflows: dev");
+  });
+
+  it("exposes passthrough (x-*) fields on agents", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir);
+    const lb = bindingWithOutputs(configDir, "app", {
+      out: {
+        target: "{hooks}/ext.txt",
+        inline_template: "team={{agents.implementer.x-team}}",
+      },
+    });
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = await readFile(join(configDir, "hooks", "ext.txt"), "utf8");
+    expect(body).toBe("team=alpha");
+  });
+});
+
+function bindingWithRenders(
+  configDir: string,
+  software: string,
+  renders: NonNullable<SoftwareBinding["renders"]>,
+  extras: Partial<SoftwareBinding> = {},
+): LoadedBinding {
+  return loadedBinding(configDir, software, {
+    software,
+    version: 1,
+    guardrail_impl: {
+      gr1: { checks: [{ message: "check-a" }] },
+    },
+    renders,
+    ...extras,
+  });
+}
+
+describe("binding renders", () => {
+  it("renders system context with inline_template", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "system" as const,
+        output: "{out}/sys.txt",
+        inline_template: "name={{system.name}}",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(result.outputFiles).toEqual([join(configDir, "gen", "sys.txt")]);
+    const body = await readFile(join(configDir, "gen", "sys.txt"), "utf8");
+    expect(body).toBe("name=System");
+  });
+
+  it("renders agent context with entity iteration", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "agent" as const,
+        output: "{out}/{agent.id}.md",
+        inline_template: "# {{agent.role_name}}\n{{agent.purpose}}",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(result.outputFiles).toHaveLength(2);
+
+    const impl = await readFile(join(configDir, "gen", "implementer.md"), "utf8");
+    expect(impl).toBe("# Implementer\nImplement features");
+    const rev = await readFile(join(configDir, "gen", "reviewer.md"), "utf8");
+    expect(rev).toBe("# Reviewer\nReview code");
+  });
+
+  it("supports include filter on entity renders", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "agent" as const,
+        output: "{out}/{agent.id}.md",
+        inline_template: "{{agent.role_name}}",
+        include: ["implementer"],
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.outputFiles).toHaveLength(1);
+    expect(result.outputFiles[0]).toContain("implementer.md");
+  });
+
+  it("supports exclude filter on entity renders", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "agent" as const,
+        output: "{out}/{agent.id}.md",
+        inline_template: "{{agent.role_name}}",
+        exclude: ["reviewer"],
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.outputFiles).toHaveLength(1);
+    expect(result.outputFiles[0]).toContain("implementer.md");
+  });
+
+  it("renders with external template file", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const tplDir = join(configDir, "templates");
+    await mkdir(tplDir, { recursive: true });
+    await writeFile(join(tplDir, "agent.hbs"), "Role: {{agent.role_name}}");
+
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "agent" as const,
+        output: "{out}/{agent.id}.md",
+        template: "templates/agent.hbs",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    const body = await readFile(join(configDir, "gen", "implementer.md"), "utf8");
+    expect(body).toBe("Role: Implementer");
+  });
+
+  it("skips empty renders when skip_empty is true", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "system" as const,
+        output: "{out}/maybe.txt",
+        inline_template: "",
+        skip_empty: true,
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.outputFiles).toEqual([]);
+  });
+
+  it("makes file executable when executable is true", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "system" as const,
+        output: "{out}/run.sh",
+        inline_template: "#!/bin/bash\necho hi",
+        executable: true,
+      },
+    ]);
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const st = await stat(join(configDir, "gen", "run.sh"));
+    expect(st.mode & 0o755).toBe(0o755);
+  });
+
+  it("exposes vars and paths in binding render context", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      vars: { env: "production" },
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "system" as const,
+        output: "{out}/info.txt",
+        inline_template: "env={{vars.env}}",
+      },
+    ]);
+
+    await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    const body = await readFile(join(configDir, "gen", "info.txt"), "utf8");
+    expect(body).toBe("env=production");
+  });
+
+  it("returns error when template file not found", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "system" as const,
+        output: "{out}/x.txt",
+        template: "nonexistent.hbs",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        path: "binding.app.renders",
+        severity: "error",
+        message: expect.stringContaining("Template file not found"),
+      }),
+    );
+  });
+
+  it("processes binding with only renders (no outputs)", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = loadedBinding(configDir, "render-only", {
+      software: "render-only",
+      version: 1,
+      guardrail_impl: {
+        gr1: { checks: [{ message: "check" }] },
+      },
+      renders: [
+        {
+          context: "system" as const,
+          output: "{out}/hello.txt",
+          inline_template: "hello",
+        },
+      ],
+    });
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(result.outputFiles).toEqual([join(configDir, "gen", "hello.txt")]);
+    const body = await readFile(join(configDir, "gen", "hello.txt"), "utf8");
+    expect(body).toBe("hello");
+  });
+
+  it("renders task context with entity iteration", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "task" as const,
+        output: "{out}/{task.id}.txt",
+        inline_template: "{{task.description}} -> {{task.target_agent}}",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.outputFiles).toHaveLength(1);
+    const body = await readFile(join(configDir, "gen", "implement-feature.txt"), "utf8");
+    expect(body).toBe("Implement a feature -> implementer");
+  });
+
+  it("renders workflow context with entity iteration", async () => {
+    const configDir = await newConfigDir();
+    const dsl = dslWithEntities();
+    const config = baseResolvedConfig(configDir, {
+      paths: { out: join(configDir, "gen") },
+    });
+    const lb = bindingWithRenders(configDir, "app", [
+      {
+        context: "workflow" as const,
+        output: "{out}/{workflow.id}.txt",
+        inline_template: "{{workflow.description}}",
+      },
+    ]);
+
+    const result = await generateGuardrails({ dsl, config, loadedBindings: [lb] });
+
+    expect(result.outputFiles).toHaveLength(1);
+    const body = await readFile(join(configDir, "gen", "dev.txt"), "utf8");
+    expect(body).toBe("Development workflow");
+  });
+});
