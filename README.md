@@ -916,6 +916,7 @@ The `generate interface` command produces a self-contained `team-interface.yaml`
 
 ````bash
 agent-contracts generate interface -c agent-contracts.config.yaml
+agent-contracts generate interface -c agent-contracts.config.yaml --team backend
 agent-contracts generate interface -c agent-contracts.config.yaml -o custom-output.yaml
 agent-contracts generate interface -c agent-contracts.config.yaml --dry-run
 ````
@@ -936,6 +937,8 @@ agent-contracts check -c agent-contracts.config.yaml
 ````
 
 If a `team-interface.yaml` exists and differs from what would be regenerated, the check reports drift.
+
+For managing multiple teams from a single configuration file (shared bindings, vars, and `--team` filtering), see [Multi-team configuration](#multi-team-configuration).
 
 ---
 
@@ -1114,6 +1117,8 @@ all from the same resolved DSL.
 ### Multi-team configuration
 
 When several teams (for example backend, QA, infra) are managed from one workspace, you can list every team in a single config file instead of maintaining separate configs.
+
+This complements the DSL-level [multi-team collaboration](#multi-team-collaboration) features (`team_interface`, `imports`, `team_task`).
 
 ````yaml
 teams:
