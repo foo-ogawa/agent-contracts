@@ -82,6 +82,16 @@ export {
   type VersionLiteral,
 } from "./system.js";
 export {
+  TeamImportSchema,
+  type TeamImport,
+} from "./team-import.js";
+export {
+  TeamInterfaceAcceptWorkflowSchema,
+  TeamInterfaceSchema,
+  type TeamInterface,
+  type TeamInterfaceAcceptWorkflow,
+} from "./team-interface.js";
+export {
   ExecutionStepSchema,
   TaskSchema,
   type ExecutionStep,

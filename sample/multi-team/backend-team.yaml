@@ -1,0 +1,146 @@
+version: 1
+system:
+  id: backend-team
+  name: Backend Team
+  default_workflow_order:
+    - implement
+    - review
+
+team_interface:
+  version: 1
+  description: "Backend team public interface"
+  accepts:
+    workflows:
+      implement:
+        internal_workflow: feature-implement
+        input_handoff: feature-request
+        output_handoff: implementation-result
+        description: "Request a feature implementation"
+  exposes:
+    artifacts:
+      - api-contract
+      - build-report
+  constraints:
+    - "feature-request must include acceptance_criteria"
+
+agents:
+  backend-architect:
+    role_name: Backend Architect
+    purpose: Designs and reviews backend implementations
+    can_read_artifacts:
+      - api-contract
+      - build-report
+      - codebase
+    can_write_artifacts:
+      - api-contract
+      - codebase
+    can_return_handoffs:
+      - feature-request
+      - implementation-result
+
+tasks:
+  plan-feature:
+    description: Plan and implement a feature
+    target_agent: backend-architect
+    allowed_from_agents:
+      - backend-architect
+    workflow: implement
+    input_artifacts:
+      - api-contract
+    invocation_handoff: feature-request
+    result_handoff: implementation-result
+
+artifacts:
+  api-contract:
+    type: specification
+    description: "OpenAPI specification for the backend API"
+    owner: backend-architect
+    producers:
+      - backend-architect
+    editors:
+      - backend-architect
+    consumers:
+      - backend-architect
+    states:
+      - draft
+      - reviewed
+      - published
+  build-report:
+    type: report
+    description: "Build and test results"
+    owner: backend-architect
+    producers:
+      - backend-architect
+    editors:
+      - backend-architect
+    consumers:
+      - backend-architect
+    states:
+      - generated
+  codebase:
+    type: code
+    owner: backend-architect
+    producers:
+      - backend-architect
+    editors:
+      - backend-architect
+    consumers:
+      - backend-architect
+    states:
+      - draft
+      - reviewed
+
+tools: {}
+validations: {}
+
+handoff_types:
+  feature-request:
+    version: 1
+    description: "Request to implement a feature"
+    schema:
+      type: object
+      required:
+        - feature_name
+        - acceptance_criteria
+      properties:
+        feature_name:
+          type: string
+        acceptance_criteria:
+          type: array
+          items:
+            type: string
+  implementation-result:
+    version: 1
+    description: "Result of a feature implementation"
+    schema:
+      type: object
+      required:
+        - status
+        - changed_files
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+            - partial
+            - failed
+        changed_files:
+          type: array
+          items:
+            type: string
+
+workflow:
+  feature-implement:
+    description: "End-to-end feature implementation"
+    steps:
+      - type: delegate
+        task: plan-feature
+        from_agent: backend-architect
+  review:
+    description: "Code review workflow"
+    steps:
+      - type: gate
+        gate_kind: feature-request
+
+policies: {}
+guardrails: {}

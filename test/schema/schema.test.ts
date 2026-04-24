@@ -20,6 +20,8 @@ import {
   RuleSchema,
   SystemSchema,
   TaskSchema,
+  TeamImportSchema,
+  TeamInterfaceSchema,
   ToolSchema,
   ValidationSchema,
   WorkflowSchema,
@@ -407,6 +409,50 @@ describe("WorkflowStepSchema discriminated union", () => {
       extra: 1,
     });
     expect(r.success).toBe(true);
+  });
+
+  it("parses team_task step", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "team_task",
+      to_team: "backend",
+      workflow: "implement",
+      handoff: "feature-request",
+      expects: "implementation-result",
+    });
+    expect(s.type).toBe("team_task");
+    if (s.type === "team_task") {
+      expect(s.to_team).toBe("backend");
+      expect(s.workflow).toBe("implement");
+    }
+  });
+
+  it("parses team_task step with description and group", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "team_task",
+      to_team: "backend",
+      workflow: "implement",
+      handoff: "feature-request",
+      expects: "implementation-result",
+      description: "Delegate to backend",
+      group: "cross-team",
+    });
+    expect(s.type).toBe("team_task");
+    if (s.type === "team_task") {
+      expect(s.description).toBe("Delegate to backend");
+      expect(s.group).toBe("cross-team");
+    }
+  });
+
+  it("allows x- properties on team_task step", () => {
+    const s = WorkflowStepSchema.parse({
+      type: "team_task",
+      to_team: "backend",
+      workflow: "implement",
+      handoff: "h1",
+      expects: "h2",
+      "x-meta": true,
+    });
+    expect((s as Record<string, unknown>)["x-meta"]).toBe(true);
   });
 });
 
@@ -838,6 +884,177 @@ describe("new standard properties", () => {
   });
 });
 
+describe("TeamInterfaceSchema", () => {
+  it("parses a full team_interface", () => {
+    const ti = TeamInterfaceSchema.parse({
+      version: 1,
+      description: "Backend team interface",
+      accepts: {
+        workflows: {
+          implement: {
+            internal_workflow: "feature-implement",
+            input_handoff: "feature-request",
+            output_handoff: "implementation-result",
+            description: "Request implementation",
+          },
+        },
+      },
+      exposes: { artifacts: ["api-contract"] },
+      constraints: ["must include acceptance_criteria"],
+    });
+    expect(ti.version).toBe(1);
+    expect(ti.accepts!.workflows.implement.input_handoff).toBe("feature-request");
+    expect(ti.exposes!.artifacts).toEqual(["api-contract"]);
+  });
+
+  it("parses minimal team_interface (version only)", () => {
+    const ti = TeamInterfaceSchema.parse({ version: 1 });
+    expect(ti.version).toBe(1);
+    expect(ti.accepts).toBeUndefined();
+    expect(ti.exposes).toBeUndefined();
+  });
+
+  it("allows x- properties", () => {
+    const ti = TeamInterfaceSchema.parse({ version: 1, "x-meta": true });
+    expect((ti as Record<string, unknown>)["x-meta"]).toBe(true);
+  });
+});
+
+describe("TeamImportSchema", () => {
+  it("parses a full import entry", () => {
+    const imp = TeamImportSchema.parse({
+      interface: "./teams/backend/team-interface.yaml",
+      version: ">=1",
+    });
+    expect(imp.interface).toBe("./teams/backend/team-interface.yaml");
+    expect(imp.version).toBe(">=1");
+  });
+
+  it("parses import without version", () => {
+    const imp = TeamImportSchema.parse({
+      interface: "./backend-interface.yaml",
+    });
+    expect(imp.version).toBeUndefined();
+  });
+
+  it("allows x- properties", () => {
+    const imp = TeamImportSchema.parse({
+      interface: "./x.yaml",
+      "x-source": "generated",
+    });
+    expect((imp as Record<string, unknown>)["x-source"]).toBe("generated");
+  });
+});
+
+describe("DslSchema with team_interface and imports", () => {
+  it("parses DSL with team_interface", () => {
+    const d = DslSchema.parse({
+      version: 1,
+      system: minimalValidSystem,
+      team_interface: {
+        version: 1,
+        accepts: {
+          workflows: {
+            implement: {
+              input_handoff: "h-in",
+              output_handoff: "h-out",
+            },
+          },
+        },
+      },
+    });
+    expect(d.team_interface).toBeDefined();
+    expect(d.team_interface!.version).toBe(1);
+  });
+
+  it("parses DSL with imports", () => {
+    const d = DslSchema.parse({
+      version: 1,
+      system: minimalValidSystem,
+      imports: {
+        backend: {
+          interface: "./backend-interface.yaml",
+          version: ">=1",
+        },
+      },
+    });
+    expect(d.imports).toBeDefined();
+    expect(d.imports!.backend.interface).toBe("./backend-interface.yaml");
+  });
+
+  it("omits team_interface and imports when absent", () => {
+    const d = DslSchema.parse({
+      version: 1,
+      system: minimalValidSystem,
+    });
+    expect(d.team_interface).toBeUndefined();
+    expect(d.imports).toBeUndefined();
+  });
+});
+
+describe("multi-team schema error cases", () => {
+  it("rejects team_task step missing required to_team", () => {
+    const r = WorkflowStepSchema.safeParse({
+      type: "team_task",
+      workflow: "implement",
+      handoff: "h1",
+      expects: "h2",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects team_task step missing required workflow", () => {
+    const r = WorkflowStepSchema.safeParse({
+      type: "team_task",
+      to_team: "backend",
+      handoff: "h1",
+      expects: "h2",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects team_task step missing required handoff", () => {
+    const r = WorkflowStepSchema.safeParse({
+      type: "team_task",
+      to_team: "backend",
+      workflow: "implement",
+      expects: "h2",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects team_task step missing required expects", () => {
+    const r = WorkflowStepSchema.safeParse({
+      type: "team_task",
+      to_team: "backend",
+      workflow: "implement",
+      handoff: "h1",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects TeamInterfaceSchema without version", () => {
+    const r = TeamInterfaceSchema.safeParse({
+      description: "no version",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects TeamImportSchema without interface field", () => {
+    const r = TeamImportSchema.safeParse({
+      version: ">=1",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects TeamInterfaceSchema with non-number version", () => {
+    const r = TeamInterfaceSchema.safeParse({
+      version: "1",
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe("generated JSON Schema (dsl.schema.json)", () => {
   it("exists and has expected top-level structure", () => {
     const schemaPath = join(__dirname, "../../schemas/dsl.schema.json");
@@ -864,6 +1081,8 @@ describe("generated JSON Schema (dsl.schema.json)", () => {
     expect(props).toHaveProperty("guardrail_policies");
     expect(props).toHaveProperty("extensions");
     expect(props).toHaveProperty("extensions_strict");
+    expect(props).toHaveProperty("team_interface");
+    expect(props).toHaveProperty("imports");
     expect(raw.required).toEqual([
       "version",
       "system",

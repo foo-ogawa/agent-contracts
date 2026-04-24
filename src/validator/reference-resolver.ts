@@ -145,6 +145,26 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
         }
       } else if (step.type === "validation") {
         checkExists(step.validation, validationIds, "validations", `workflow.${wfId}.steps[${j}].validation`);
+      } else if (step.type === "team_task") {
+        const importKeys =
+          dsl.imports !== undefined ? new Set(Object.keys(dsl.imports)) : null;
+        if (importKeys) {
+          checkExists(
+            step.to_team,
+            importKeys,
+            "imports",
+            `workflow.${wfId}.steps[${j}].to_team`,
+            "team-import-not-found",
+          );
+        } else {
+          diagnostics.push({
+            path: `workflow.${wfId}.steps[${j}].to_team`,
+            message: `team_task step references team "${step.to_team}" but dsl.imports is not defined`,
+            code: "team-task-missing-imports",
+          });
+        }
+        checkExists(step.handoff, handoffKinds, "handoff_types", `workflow.${wfId}.steps[${j}].handoff`);
+        checkExists(step.expects, handoffKinds, "handoff_types", `workflow.${wfId}.steps[${j}].expects`);
       }
     }
   }
@@ -344,6 +364,50 @@ export function checkReferences(dsl: Dsl): ReferenceDiagnostic[] {
         `guardrail_policies.${policyId}.rules[${i}].guardrail`,
         "guardrail-policy-ref-not-found",
       );
+    }
+  }
+
+  const workflowDefinitionIds = new Set(Object.keys(dsl.workflow));
+
+  if (dsl.team_interface) {
+    const ti = dsl.team_interface;
+    if (ti.accepts?.workflows) {
+      for (const [wfKey, spec] of Object.entries(ti.accepts.workflows)) {
+        const internalWf = spec.internal_workflow ?? wfKey;
+        checkExists(
+          internalWf,
+          workflowDefinitionIds,
+          "workflow",
+          `team_interface.accepts.workflows.${wfKey}.internal_workflow`,
+          "team-interface-workflow-not-found",
+        );
+        checkExists(
+          spec.input_handoff,
+          handoffKinds,
+          "handoff_types",
+          `team_interface.accepts.workflows.${wfKey}.input_handoff`,
+          "team-interface-handoff-not-found",
+        );
+        checkExists(
+          spec.output_handoff,
+          handoffKinds,
+          "handoff_types",
+          `team_interface.accepts.workflows.${wfKey}.output_handoff`,
+          "team-interface-handoff-not-found",
+        );
+      }
+    }
+    if (ti.exposes?.artifacts) {
+      for (let i = 0; i < ti.exposes.artifacts.length; i++) {
+        const artKey = ti.exposes.artifacts[i];
+        checkExists(
+          artKey,
+          artifactIds,
+          "artifacts",
+          `team_interface.exposes.artifacts[${i}]`,
+          "team-interface-artifact-not-found",
+        );
+      }
     }
   }
 

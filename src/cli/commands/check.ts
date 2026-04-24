@@ -1,4 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
+import { parse as parseYaml, stringify } from "yaml";
 import { access } from "node:fs/promises";
 import { resolve as pathResolve, dirname } from "node:path";
 import { loadConfig, loadBindings, ConfigLoadError } from "../../config/index.js";
@@ -7,6 +10,7 @@ import { validateSchema, checkReferences, validateHandoffSchemas } from "../../v
 import { lint, spectralLint } from "../../linter/index.js";
 import { checkDriftFromConfig, type RenderOptions } from "../../renderer/index.js";
 import { formatDiagnostics, type OutputFormat } from "../format.js";
+import { generateInterface } from "../../interface-generator/index.js";
 import { getTeamEntries, isMultiTeamConfig } from "../multi-team.js";
 
 export const checkCommand = new Command("check")
@@ -222,6 +226,34 @@ export const checkCommand = new Command("check")
             process.stderr.write(`  ${f}\n`);
           }
           hasErrors = true;
+        }
+
+        if (schemaResult.data!.team_interface) {
+          const interfacePath = join(config.configDir, "team-interface.yaml");
+          if (existsSync(interfacePath)) {
+            const result = generateInterface({
+              dsl: schemaResult.data!,
+              dryRun: true,
+              format: "yaml",
+            });
+            const existing = readFileSync(interfacePath, "utf8");
+            const normalize = (raw: string): string => {
+              try {
+                const parsed = parseYaml(raw) as Record<string, unknown>;
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                  const { generated_at: _t, ...rest } = parsed;
+                  return `${stringify(rest, { sortMapEntries: true })}\n`;
+                }
+              } catch {
+                /* fall through */
+              }
+              return raw.trim();
+            };
+            if (normalize(existing) !== normalize(result.content)) {
+              process.stderr.write("Drift detected in team-interface.yaml\n");
+              hasErrors = true;
+            }
+          }
         }
 
         if (hasErrors) {

@@ -70,12 +70,25 @@ const WorkflowDecisionStepSchema = z
   })
   .passthrough();
 
+const WorkflowTeamTaskStepSchema = z
+  .object({
+    type: z.literal("team_task"),
+    description: z.string().optional(),
+    to_team: z.string(),
+    workflow: z.string(),
+    handoff: z.string(),
+    expects: z.string(),
+    group: z.string().optional(),
+  })
+  .passthrough();
+
 export const WorkflowStepSchema = z.discriminatedUnion("type", [
   WorkflowDelegateStepSchema,
   WorkflowGateStepSchema,
   WorkflowHandoffStepSchema,
   WorkflowValidationStepSchema,
   WorkflowDecisionStepSchema,
+  WorkflowTeamTaskStepSchema,
 ]);
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
