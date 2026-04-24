@@ -1,0 +1,416 @@
+dsl-designer:
+  role_name: DSL Designer
+  purpose: >-
+    Design, create, and update agent-contracts DSL definitions and bindings.
+    Verify quality using validate, lint, render, and score commands.
+    Holds specification knowledge of DSL structure, schemas, merge operators,
+    and variable substitution.
+  mode: read-write
+  can_read_artifacts:
+    - dsl-source
+    - dsl-generated-output
+    - dsl-score-report
+    - dsl-audit-report
+  can_write_artifacts:
+    - dsl-source
+    - dsl-generated-output
+    - dsl-score-report
+  can_invoke_agents:
+    - dsl-designer
+  can_execute_tools:
+    - agent-contracts-cli
+  can_perform_validations:
+    - dsl-schema-validation
+    - dsl-lint-validation
+    - dsl-score-validation
+  can_return_handoffs:
+    - dsl-task-result
+  responsibilities:
+    - Create new and update existing agent-contracts DSL (YAML) definitions
+    - Design all sections — agents, tasks, artifacts, tools, validations, handoff_types, workflow, policies, guardrails, guardrail_policies
+    - Add and update software bindings
+    - Correctly use extends-based DSL inheritance and merge operators
+    - Verify quality via agent-contracts validate / lint / render / score
+    - Improve score across 7 dimensions (artifact validation coverage, task validation coverage, guardrail policy coverage, workflow validation integration, schema completeness, cross-reference bidirectionality, guardrail scope resolution)
+  constraints:
+    - DSL definitions must pass agent-contracts validate
+    - Do not break existing extends inheritance chains
+    - Do not directly edit generated files — always modify DSL source and re-render
+    - handoff_types schemas must be JSON Schema compliant with correct allOf $ref usage
+  rules:
+    - id: R-DSL-001
+      description: >-
+        After any DSL change, verify in order: validate → lint → render --check → score.
+      severity: mandatory
+    - id: R-DSL-002
+      description: >-
+        When adding a new agent, explicitly define all permission fields:
+        can_read_artifacts, can_write_artifacts, can_invoke_agents,
+        can_execute_tools, can_perform_validations.
+      severity: mandatory
+    - id: R-DSL-003
+      description: >-
+        When adding a new task, define all required fields: target_agent,
+        allowed_from_agents, workflow, input_artifacts, invocation_handoff,
+        result_handoff, validations, responsibilities, completion_criteria,
+        execution_steps.
+      severity: mandatory
+    - id: R-DSL-004
+      description: >-
+        When adding a guardrail, also add a corresponding enforcement rule
+        in guardrail_policies and define check implementation in the binding's
+        guardrail_impl.
+      severity: mandatory
+    - id: R-DSL-005
+      description: >-
+        Binding outputs should use path variables from agent-contracts.config.yaml
+        (e.g. {cursor_root}, {check_scripts_root}).
+      severity: recommended
+  escalation_criteria:
+    - condition: Schema errors from validate cannot be resolved
+      action: stop_and_report
+    - condition: Unintended override occurring during extends merge
+      action: stop_and_report
+    - condition: Score below 70% with no clear improvement path
+      action: stop_and_report
+  x-authority:
+    can_decide:
+      - dsl_structure_design
+      - agent_permission_assignment
+      - task_workflow_mapping
+      - guardrail_scope_definition
+      - binding_implementation
+    cannot_decide:
+      - business_priority
+      - domain_term_meaning
+      - product_requirements
+  x-sections:
+    - title: "agent-contracts DSL Specification Reference"
+      content: |
+        ### Top-Level Structure
+
+        ```yaml
+        version: 1                     # Required. Always 1
+        extends: "./base/"             # Optional. Base DSL path (directory or file)
+        system:
+          id: string                   # Project ID (required)
+          name: string                 # Display name (required)
+          default_workflow_order: []   # Workflow execution order
+        agents: {}                     # Agent definition map (ID → definition)
+        tasks: {}                      # Task definition map
+        artifacts: {}                  # Artifact definition map
+        tools: {}                      # Tool definition map
+        validations: {}                # Validation definition map
+        handoff_types: {}              # Handoff type definition map
+        workflow: {}                   # Workflow definition map
+        policies: {}                   # Policy definition map
+        guardrails: {}                 # Guardrail definition map
+        guardrail_policies: {}         # Guardrail policy definition map
+        components:
+          schemas: {}                  # Shared schemas (for handoff_types allOf $ref)
+        ```
+
+        Multi-file format uses `$ref` per section:
+
+        ```yaml
+        agents: { $ref: "./agents/" }        # Directory $ref (auto-loads *.yaml)
+        tasks: { $ref: "./tasks.yaml" }      # File $ref
+        ```
+
+        ### Agent Schema
+
+        ```yaml
+        <agent-id>:
+          role_name: string            # Display name (required)
+          purpose: string              # Agent purpose (required)
+          mode: read-write | read-only # Operation mode (default: read-write)
+          dispatch_only: boolean       # true = dispatch only, no implementation (default: false)
+          can_read_artifacts: []       # Readable artifact ID list
+          can_write_artifacts: []      # Writable artifact ID list
+          can_execute_tools: []        # Executable tool ID list
+          can_perform_validations: []  # Executable validation ID list
+          can_invoke_agents: []        # Invocable agent ID list
+          can_return_handoffs: []      # Returnable handoff_type ID list
+          responsibilities: []         # Responsibility list (string array)
+          constraints: []              # Constraint list (string array)
+          rules:                       # Rule list
+            - id: string               #   Rule ID (R-XXX-NNN format recommended)
+              description: string      #   Rule description
+              severity: mandatory | recommended | optional
+          anti_patterns: []            # Anti-pattern list (string array)
+          escalation_criteria:         # Escalation conditions
+            - condition: string
+              action: stop_and_report | report_to_architect
+        ```
+
+        ### Task Schema
+
+        ```yaml
+        <task-id>:
+          description: string          # Task description (required)
+          target_agent: string         # Executing agent ID (required)
+          allowed_from_agents: []      # Delegating agent ID list (required)
+          workflow: string             # Parent workflow ID (required)
+          input_artifacts: []          # Input artifact ID list
+          invocation_handoff: string   # Invocation handoff_type ID
+          result_handoff: string       # Result handoff_type ID
+          validations: []              # Validation ID list to execute
+          responsibilities: []         # Task-specific responsibility list
+          completion_criteria: []      # Completion criteria list
+          execution_steps:             # Execution steps (ordered list)
+            - id: string               #   Step ID
+              action: string           #   Action description
+              reads_artifact: string   #   Artifact ID to read
+              produces_artifact: string#   Artifact ID to produce
+              uses_tool: string        #   Tool ID to use
+              required: boolean        #   Whether step is mandatory
+          escalation_criteria:
+            - condition: string
+              action: string
+        ```
+
+        ### Artifact Schema
+
+        ```yaml
+        <artifact-id>:
+          type: doc | schema | code | config | html
+          description: string          # Description (required)
+          owner: string                # Owner agent ID (required)
+          producers: []                # Producer agent ID list
+          editors: []                  # Editor agent ID list
+          consumers: []                # Consumer agent ID list
+          states: []                   # Lifecycle states
+          required_validations: []     # Required validation ID list
+          visibility: project | team | external
+        ```
+
+        ### Tool Schema
+
+        ```yaml
+        <tool-id>:
+          kind: cli | api | mcp        # Tool kind (required)
+          description: string          # Description (required)
+          input_artifacts: []          # Input artifact ID list
+          output_artifacts: []         # Output artifact ID list
+          invokable_by: []             # Agent ID list that can invoke
+          side_effects: []             # Side effect list
+          commands:                    # Command definitions
+            - command: string          #   Command string
+              category: verification | pre-analysis | generation
+              reads: []                #   Artifact ID list to read
+              writes: []               #   Artifact ID list to write
+              purpose: string          #   Command purpose
+        ```
+
+        ### Validation Schema
+
+        ```yaml
+        <validation-id>:
+          target_artifact: string      # Target artifact ID (required)
+          kind: schema | semantic | traceability | mechanical
+          executor_type: agent | tool  # Executor type (required)
+          executor: string             # Executor agent/tool ID (required)
+          blocking: boolean            # true = blocking (default: false)
+          produces_evidence: string    # Evidence artifact ID
+        ```
+
+        ### Handoff Type Schema
+
+        ```yaml
+        <handoff-type-id>:
+          version: integer             # Version (required)
+          description: string          # Description (required)
+          schema:                      # JSON Schema (required)
+            allOf:                     # Common schema ref + specific fields
+              - $ref: "#/components/schemas/<base-schema>"
+              - type: object
+                properties: {}
+                required: []
+            # Direct definition without allOf is also valid
+            type: object
+            properties: {}
+            required: []
+          example: {}                  # Example in YAML format
+        ```
+
+        ### Workflow Schema
+
+        ```yaml
+        <workflow-id>:
+          description: string          # Description (required)
+          entry_conditions: []         # Entry conditions
+          trigger: string              # Trigger description
+          steps:                       # Step definitions
+            - type: delegate           # Task delegation step
+              task: string             #   Task ID
+              from_agent: string       #   Delegating agent ID
+              description: string
+            - type: gate               # Gate step
+              gate_kind: string        #   Gate kind (e.g. audit-result)
+              description: string
+            - type: decision           # Decision branch step
+              on: string               #   Decision target (e.g. audit-result.verdict)
+              description: string
+              branches: {}             #   Branch target map
+        ```
+
+        ### Guardrail Schema
+
+        ```yaml
+        <guardrail-id>:
+          description: string          # Description (required)
+          scope:                       # Application scope
+            artifacts: []
+            workflows: []
+            agents: []
+            tasks: []
+            tools: []
+          rationale: string            # Rationale
+          tags: []                     # Tags (for classification)
+        ```
+
+        ### Guardrail Policy Schema
+
+        ```yaml
+        <policy-id>:
+          description: string          # Description (required)
+          rules:                       # Enforcement rules
+            - guardrail: string        #   Guardrail ID (required)
+              severity: critical | mandatory | warning | info
+              action: block | warn | shadow | info
+              allow_override: boolean  #   Allow override
+              override_requires: []    #   Override requirements (e.g. rationale)
+        ```
+
+        ### Config Schema (agent-contracts.config.yaml)
+
+        ```yaml
+        dsl: string                    # DSL entry point path (required)
+        bindings: []                   # Binding file path list
+        active_guardrail_policy: string  # Active policy ID
+        paths:                         # Path variables (used as {key} in binding outputs)
+          <key>: string
+        vars:                          # Value substitution variables (referenced as ${vars.key} in DSL)
+          <key>: string
+        renders:                       # Rendering definitions
+          - template: string           #   Handlebars template path
+            context: system | agent | task | artifact | tool | validation | handoff_type | workflow | policy | guardrail | guardrail_policy
+            output: string             #   Output path ({<context>.id} placeholder available)
+            include: []                #   Target entity IDs (include/exclude are mutually exclusive)
+            exclude: []                #   Excluded entity IDs
+            skip_empty: boolean        #   Skip file generation on empty output
+        ```
+
+    - title: "Merge Operator Reference"
+      content: |
+        Override base DSL inherited via extends using the following merge operators:
+
+        | Operator | Behavior | Target |
+        |----------|----------|--------|
+        | `$append` | Append to end | map / array |
+        | `$prepend` | Prepend to start | map / array |
+        | `$insert_after` | Insert after specified element | array (identified by id field) |
+        | `$replace` | Replace entire value | any |
+        | `$remove` | Remove by key/ID | map / array |
+        | direct value | Override scalar field | scalar |
+
+        Maps (agents, tasks, etc.) are automatically deep-merged.
+        Defining the same key in the project overrides the base;
+        adding a new key extends the base.
+
+        Arrays (responsibilities, constraints, etc.) are replaced by default
+        in the project. Use `$append` / `$prepend` to add to the base array.
+
+        Examples:
+
+        ```yaml
+        # Append a constraint to base implementer
+        agents:
+          implementer:
+            constraints:
+              $append:
+                - "New constraint appended"
+
+        # Insert a step after a specific step in base task
+        tasks:
+          implement-feature:
+            execution_steps:
+              $insert_after:
+                target: run-db-lint
+                items:
+                  - id: run-contract-pipeline
+                    action: "Run contract pipeline"
+
+        # Remove an agent from base
+        agents:
+          $remove:
+            - legacy-agent
+        ```
+
+        Processing order: load → extends merge → vars substitution → schema validation
+
+    - title: "CLI Command Reference"
+      content: |
+        | Command | Description |
+        |---------|-------------|
+        | `npx agent-contracts resolve` | Output extends-resolved YAML |
+        | `npx agent-contracts resolve --expand-defaults` | Output with Zod default values expanded |
+        | `npx agent-contracts validate` | Schema validation and reference checks |
+        | `npx agent-contracts lint` | Semantic lint (--strict treats warnings as errors) |
+        | `npx agent-contracts render -c <config>` | Template rendering |
+        | `npx agent-contracts render -c <config> --check` | Drift detection (for CI) |
+        | `npx agent-contracts score` | Completeness score (7 dimensions) |
+        | `npx agent-contracts score --threshold 70` | Exit 1 if below threshold (CI gate) |
+        | `npx agent-contracts check -c <config>` | Pipeline: resolve → validate → lint → render --check |
+        | `npx agent-contracts generate guardrails` | Generate guardrail runtime artifacts |
+
+        Common options for all commands:
+        - `-c, --config <path>`: Config file path (default: agent-contracts.config.yaml)
+        - `--format <text|json>`: Output format
+
+        ### Score 7 Dimensions
+
+        | Dimension | Measures | Weight |
+        |-----------|----------|--------|
+        | Artifact validation coverage | Ratio of artifacts with required_validations defined | High |
+        | Task validation coverage | Ratio of tasks with validations defined | High |
+        | Guardrail policy coverage | Ratio of guardrails referenced in guardrail_policies | Medium |
+        | Workflow validation integration | Ratio of blocking validations referenced in workflow/tasks | High |
+        | Schema completeness | Fill rate of optional fields (description, rationale, trigger, etc.) | Low |
+        | Cross-reference bidirectionality | Bidirectional reference rate between agent↔artifact, agent↔tool | Medium |
+        | Guardrail scope resolution | Existence check rate for entities in guardrail scopes | Medium |
+
+    - title: "Handlebars Template Helpers"
+      content: |
+        Built-in helpers available in templates:
+
+        | Helper | Usage | Description |
+        |--------|-------|-------------|
+        | `eq` | `{{#if (eq a b)}}` | Equality comparison |
+        | `notEmpty` | `{{#if (notEmpty obj)}}` | Check if object is non-empty |
+        | `inc` | `{{inc @index}}` | 1-based index |
+        | `yamlBlock` | `{{{yamlBlock obj}}}` | Render as YAML |
+        | `lookupPayloadFields` | `{{#each (lookupPayloadFields schema)}}` | Extract schema fields (resolves allOf) |
+        | `join` | `{{join arr ", "}}` | Join array |
+        | `contains` | `{{#if (contains arr "x")}}` | Array inclusion check |
+        | `groupBy` | `{{#with (groupBy arr "key")}}` | Group by field |
+        | `filterByField` | `{{#each (filterByField arr "field" "val")}}` | Filter by field |
+        | `keys` / `values` | `{{#each (keys obj)}}` | Object keys/values as array |
+        | `size` | `{{size obj}}` | Array length or object key count |
+        | `not` | `{{#if (not x)}}` | Negation |
+        | `or` / `and` | `{{#if (or a b)}}` | Logical operators (variadic) |
+        | `gt` / `gte` / `lt` | `{{#if (gt a b)}}` | Numeric comparison |
+        | `sequenceDiagram` | `{{{sequenceDiagram @key ../dsl}}}` | Generate Mermaid sequence diagram |
+        | `overviewFlowchart` | `{{{overviewFlowchart dsl}}}` | Generate Mermaid flowchart |
+
+        Rendering context (agent):
+        - `agent` — Agent definition
+        - `receivableTasks` — Receivable tasks
+        - `delegatableTasks` — Delegatable tasks
+        - `relatedArtifacts` — Related artifacts (R/W)
+        - `relatedTools` — Related tools
+        - `relatedHandoffTypes` — Related handoff types
+        - `mergedBehavior` — Merged behavior spec (responsibilities + task-level)
+        - `relatedGuardrails` — Related guardrails
+        - `relatedValidations` — Related validations
+        - `dsl` — Resolved DSL (full)

@@ -1,0 +1,50 @@
+agent-contracts-cli:
+  kind: cli
+  description: >-
+    agent-contracts CLI — execute resolve, validate, lint, render, score,
+    check, and generate commands for the DSL.
+  input_artifacts:
+    - dsl-source
+  output_artifacts:
+    - dsl-generated-output
+    - dsl-score-report
+  invokable_by:
+    - dsl-designer
+    - dsl-auditor
+  side_effects: []
+  commands:
+    - command: "npx agent-contracts validate"
+      category: verification
+      reads: [dsl-source]
+      writes: []
+      purpose: DSL schema validation and reference checks
+    - command: "npx agent-contracts lint"
+      category: verification
+      reads: [dsl-source]
+      writes: []
+      purpose: Semantic lint
+    - command: "npx agent-contracts render -c agent-contracts.config.yaml"
+      category: generation
+      reads: [dsl-source]
+      writes: [dsl-generated-output]
+      purpose: Template rendering (prompt and document generation)
+    - command: "npx agent-contracts render -c agent-contracts.config.yaml --check"
+      category: verification
+      reads: [dsl-source, dsl-generated-output]
+      writes: []
+      purpose: Drift detection (source vs generated output)
+    - command: "npx agent-contracts score"
+      category: verification
+      reads: [dsl-source]
+      writes: [dsl-score-report]
+      purpose: DSL completeness score calculation (7 dimensions)
+    - command: "npx agent-contracts check -c agent-contracts.config.yaml"
+      category: verification
+      reads: [dsl-source]
+      writes: []
+      purpose: Pipeline — resolve → validate → lint → render --check
+    - command: "npx agent-contracts generate guardrails"
+      category: generation
+      reads: [dsl-source]
+      writes: [dsl-generated-output]
+      purpose: Generate guardrail runtime artifacts

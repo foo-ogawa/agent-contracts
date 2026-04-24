@@ -1,0 +1,179 @@
+# === DSL Update Tasks ===
+
+update-dsl-definitions:
+  description: Create new or update existing agent-contracts DSL definitions
+  target_agent: dsl-designer
+  allowed_from_agents:
+    - dsl-designer
+  workflow: dsl-update
+  input_artifacts:
+    - dsl-source
+  invocation_handoff: dsl-task-request
+  result_handoff: dsl-task-result
+  validations:
+    - dsl-schema-validation
+    - dsl-lint-validation
+  responsibilities:
+    - Create and update DSL YAML files
+    - Define agents, tasks, artifacts, tools, validations, handoff_types, workflow, guardrails
+    - Configure system section
+  completion_criteria:
+    - agent-contracts validate succeeds
+    - agent-contracts lint reports no errors
+    - Cross-references for newly added entities are correct
+  execution_steps:
+    - id: read-current-dsl
+      action: Read current DSL definitions and understand the structure
+      reads_artifact: dsl-source
+      required: true
+    - id: update-dsl
+      action: Create or update DSL definitions
+      produces_artifact: dsl-source
+    - id: validate
+      action: Run agent-contracts validate
+      uses_tool: agent-contracts-cli
+      required: true
+    - id: lint
+      action: Run agent-contracts lint
+      uses_tool: agent-contracts-cli
+  escalation_criteria:
+    - condition: Schema errors from validate cannot be resolved
+      action: stop_and_report
+
+update-dsl-binding:
+  description: Create new or update existing software bindings
+  target_agent: dsl-designer
+  allowed_from_agents:
+    - dsl-designer
+  workflow: dsl-update
+  input_artifacts:
+    - dsl-source
+  invocation_handoff: dsl-task-request
+  result_handoff: dsl-task-result
+  validations:
+    - dsl-schema-validation
+  responsibilities:
+    - Add and update guardrail_impl check definitions
+    - Configure outputs section templates and inline templates
+    - Set up binding extends inheritance
+  completion_criteria:
+    - Binding YAML conforms to the correct schema
+    - guardrail_impl hook_event / matcher values are valid
+    - agent-contracts generate guardrails succeeds
+  execution_steps:
+    - id: read-guardrails
+      action: Review target guardrail definitions and policies
+      reads_artifact: dsl-source
+      required: true
+    - id: update-binding
+      action: Create or update binding YAML
+      produces_artifact: dsl-source
+    - id: generate
+      action: Run agent-contracts generate guardrails to verify
+      uses_tool: agent-contracts-cli
+      required: true
+  escalation_criteria:
+    - condition: Binding guardrail_impl is inconsistent with DSL guardrails
+      action: stop_and_report
+
+render-dsl-outputs:
+  description: Render prompts and documents from DSL and check for drift
+  target_agent: dsl-designer
+  allowed_from_agents:
+    - dsl-designer
+  workflow: dsl-update
+  input_artifacts:
+    - dsl-source
+  invocation_handoff: dsl-task-request
+  result_handoff: dsl-task-result
+  validations:
+    - dsl-schema-validation
+  responsibilities:
+    - Generate prompts and documents via agent-contracts render
+    - Detect and resolve drift using render --check
+  completion_criteria:
+    - render succeeds
+    - render --check reports no drift
+  execution_steps:
+    - id: render
+      action: Run agent-contracts render
+      uses_tool: agent-contracts-cli
+      produces_artifact: dsl-generated-output
+      required: true
+    - id: check-drift
+      action: Run agent-contracts render --check to verify no drift
+      uses_tool: agent-contracts-cli
+  escalation_criteria:
+    - condition: Unresolved template errors during render
+      action: stop_and_report
+
+check-dsl-score:
+  description: Check DSL completeness score and identify improvement areas
+  target_agent: dsl-designer
+  allowed_from_agents:
+    - dsl-designer
+  workflow: dsl-update
+  input_artifacts:
+    - dsl-source
+  invocation_handoff: dsl-task-request
+  result_handoff: dsl-task-result
+  responsibilities:
+    - Review score across 7 dimensions and identify weaknesses
+    - List entities that need improvement
+  completion_criteria:
+    - Score results have been reviewed
+    - Improvement areas have been identified
+  execution_steps:
+    - id: run-score
+      action: Run agent-contracts score
+      uses_tool: agent-contracts-cli
+      required: true
+    - id: analyze
+      action: Analyze score weaknesses and formulate improvement plan
+      produces_artifact: dsl-score-report
+  escalation_criteria:
+    - condition: Score is significantly below threshold with no clear improvement path
+      action: stop_and_report
+
+# === DSL Audit Tasks ===
+
+audit-dsl-completeness:
+  description: Audit completeness of DSL definitions against generated prompts
+  target_agent: dsl-auditor
+  allowed_from_agents:
+    - dsl-auditor
+  workflow: dsl-audit
+  input_artifacts:
+    - dsl-source
+    - dsl-generated-output
+  invocation_handoff: dsl-task-request
+  result_handoff: dsl-audit-result
+  validations:
+    - dsl-completeness-audit
+  responsibilities:
+    - Cross-check across 19 dimensions per audit procedure
+    - Classify gaps as template gap, data gap, or DSL gap
+    - Present improvement recommendations
+  completion_criteria:
+    - All dimensions inspected for all agents
+    - Detected gaps are classified
+    - Improvement recommendations are presented with priority
+  execution_steps:
+    - id: collect-sources
+      action: Collect DSL definitions, generated prompts, and templates
+      reads_artifact: dsl-source
+      required: true
+    - id: collect-outputs
+      action: Collect generated prompts
+      reads_artifact: dsl-generated-output
+      required: true
+    - id: run-audit
+      action: Execute 19-dimension cross-check
+    - id: analyze-gaps
+      action: Analyze root causes of detected gaps
+    - id: produce-report
+      action: Produce audit report and improvement recommendations
+      produces_artifact: dsl-audit-report
+  escalation_criteria:
+    - condition: 3 or more critical-level gaps detected
+      action: stop_and_report
