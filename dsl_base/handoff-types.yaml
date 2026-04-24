@@ -1,0 +1,108 @@
+dsl-task-request:
+  version: 1
+  description: Request to execute a DSL management task
+  schema:
+    type: object
+    properties:
+      task_id:
+        type: string
+        description: Identifier of the task to execute
+      scope:
+        type: string
+        description: Scope of changes (agents, tasks, artifacts, workflow, bindings, etc.)
+      context:
+        type: string
+        description: Background and purpose of the change
+    required:
+      - task_id
+
+dsl-task-result:
+  version: 1
+  description: Result of a DSL management task execution
+  schema:
+    type: object
+    properties:
+      changed_files:
+        type: array
+        items:
+          type: string
+        description: List of changed file paths
+      validation_result:
+        type: string
+        enum:
+          - pass
+          - fail
+        description: Result of validate / lint
+      score:
+        type: number
+        description: Score command result (0-100)
+      notes:
+        type: string
+        description: Additional notes or improvement suggestions
+    required:
+      - validation_result
+
+dsl-audit-result:
+  version: 1
+  description: Result of DSL completeness audit
+  schema:
+    type: object
+    properties:
+      total_dimensions:
+        type: integer
+        description: Number of dimensions inspected
+      pass_count:
+        type: integer
+        description: Number of PASS dimensions
+      miss_count:
+        type: integer
+        description: Number of MISS dimensions
+      partial_count:
+        type: integer
+        description: Number of PARTIAL dimensions
+      critical_gaps:
+        type: array
+        items:
+          type: object
+          properties:
+            dimension:
+              type: string
+            agent:
+              type: string
+            gap_type:
+              type: string
+              enum:
+                - template_gap
+                - data_gap
+                - dsl_gap
+            severity:
+              type: string
+              enum:
+                - critical
+                - warning
+                - info
+        description: List of detected critical gaps
+      recommendations:
+        type: array
+        items:
+          type: object
+          properties:
+            priority:
+              type: string
+              enum:
+                - P0
+                - P1
+                - P2
+            description:
+              type: string
+            fix_type:
+              type: string
+              enum:
+                - template_fix
+                - dsl_fix
+                - regeneration
+        description: Prioritized improvement recommendation list
+    required:
+      - total_dimensions
+      - pass_count
+      - miss_count

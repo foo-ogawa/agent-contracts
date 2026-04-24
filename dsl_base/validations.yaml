@@ -1,0 +1,46 @@
+dsl-schema-validation:
+  target_artifact: dsl-source
+  kind: schema
+  executor_type: tool
+  executor: agent-contracts-cli
+  blocking: true
+  x-description: >-
+    DSL schema validation via agent-contracts validate command.
+    Performs type checks on all entities, verifies required fields,
+    and checks cross-reference integrity.
+
+dsl-lint-validation:
+  target_artifact: dsl-source
+  kind: semantic
+  executor_type: tool
+  executor: agent-contracts-cli
+  blocking: false
+  x-description: >-
+    Semantic validation via agent-contracts lint command.
+    Checks naming conventions, unused entities, circular references,
+    and other design quality aspects.
+
+dsl-score-validation:
+  target_artifact: dsl-source
+  kind: semantic
+  executor_type: tool
+  executor: agent-contracts-cli
+  blocking: false
+  x-description: >-
+    Completeness evaluation via agent-contracts score command.
+    Scores across 7 dimensions: artifact validation coverage,
+    task validation coverage, guardrail policy coverage,
+    workflow validation integration, schema completeness,
+    cross-reference bidirectionality, guardrail scope resolution.
+
+dsl-completeness-audit:
+  target_artifact: dsl-generated-output
+  kind: semantic
+  executor_type: agent
+  executor: dsl-auditor
+  blocking: false
+  produces_evidence: dsl-audit-report
+  x-description: >-
+    19-dimension cross-check audit of DSL definitions against generated
+    prompts. Verifies that all items defined in the DSL are correctly
+    reflected in generated output.

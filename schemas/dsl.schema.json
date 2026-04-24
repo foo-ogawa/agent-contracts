@@ -181,6 +181,25 @@
               "additionalProperties": {}
             }
           },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "content"
+              ],
+              "additionalProperties": false
+            }
+          },
           "prerequisites": {
             "type": "array",
             "items": {

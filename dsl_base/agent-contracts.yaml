@@ -1,0 +1,15 @@
+version: 1
+system:
+  id: dsl-management-base
+  name: DSL Management Base
+  default_workflow_order:
+    - dsl-update
+    - dsl-audit
+
+agents: { $ref: "./agents/" }
+tasks: { $ref: "./tasks.yaml" }
+artifacts: { $ref: "./artifacts.yaml" }
+tools: { $ref: "./tools.yaml" }
+validations: { $ref: "./validations.yaml" }
+handoff_types: { $ref: "./handoff-types.yaml" }
+workflow: { $ref: "./workflow.yaml" }

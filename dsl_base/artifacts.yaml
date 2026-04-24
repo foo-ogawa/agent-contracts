@@ -1,0 +1,69 @@
+dsl-source:
+  type: config
+  description: >-
+    agent-contracts DSL source files — YAML definitions for agents, tasks,
+    artifacts, tools, validations, handoff_types, workflow, policies,
+    guardrails, guardrail_policies, and bindings.
+  owner: dsl-designer
+  producers:
+    - dsl-designer
+  editors:
+    - dsl-designer
+  consumers:
+    - dsl-auditor
+  states:
+    - draft
+    - validated
+    - rendered
+  required_validations:
+    - dsl-schema-validation
+    - dsl-lint-validation
+
+dsl-generated-output:
+  type: doc
+  description: >-
+    Files generated from DSL via render — agent prompts, overview documents,
+    workflow commands, guardrail configurations, etc.
+  owner: dsl-designer
+  producers:
+    - dsl-designer
+  editors:
+    - dsl-designer
+  consumers:
+    - dsl-auditor
+  states:
+    - generated
+    - verified
+  required_validations:
+    - dsl-completeness-audit
+
+dsl-score-report:
+  type: doc
+  description: >-
+    Output of agent-contracts score command — completeness evaluation
+    across 7 dimensions.
+  owner: dsl-designer
+  producers:
+    - dsl-designer
+  editors:
+    - dsl-designer
+  consumers:
+    - dsl-auditor
+  states:
+    - generated
+
+dsl-audit-report:
+  type: doc
+  description: >-
+    DSL completeness audit report — PASS/MISS matrix across 19 dimensions,
+    gap analysis, and improvement recommendations.
+  owner: dsl-auditor
+  producers:
+    - dsl-auditor
+  editors:
+    - dsl-auditor
+  consumers:
+    - dsl-designer
+  states:
+    - submitted
+  x-artifact-class: evidence
