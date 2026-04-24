@@ -1,0 +1,139 @@
+version: 1
+system:
+  id: qa-team
+  name: QA Team
+  default_workflow_order:
+    - test-plan
+    - execute-tests
+
+imports:
+  backend:
+    interface: ./backend-team-interface.yaml
+    version: ">=1"
+
+agents:
+  qa-lead:
+    role_name: QA Lead
+    purpose: Plans and coordinates testing activities
+    can_read_artifacts:
+      - test-plan-doc
+      - test-results
+    can_write_artifacts:
+      - test-plan-doc
+      - test-results
+    can_return_handoffs:
+      - test-delegation
+      - test-result
+
+tasks:
+  create-test-plan:
+    description: Create a test plan for a feature
+    target_agent: qa-lead
+    allowed_from_agents:
+      - qa-lead
+    workflow: test-plan
+    input_artifacts:
+      - test-plan-doc
+    invocation_handoff: test-delegation
+    result_handoff: test-result
+
+artifacts:
+  test-plan-doc:
+    type: document
+    description: "Test plan document"
+    owner: qa-lead
+    producers:
+      - qa-lead
+    editors:
+      - qa-lead
+    consumers:
+      - qa-lead
+    states:
+      - draft
+      - approved
+  test-results:
+    type: report
+    description: "Test execution results"
+    owner: qa-lead
+    producers:
+      - qa-lead
+    editors:
+      - qa-lead
+    consumers:
+      - qa-lead
+    states:
+      - pending
+      - complete
+
+tools: {}
+validations: {}
+
+handoff_types:
+  test-delegation:
+    version: 1
+    schema:
+      type: object
+      properties:
+        test_scope:
+          type: string
+  test-result:
+    version: 1
+    schema:
+      type: object
+      properties:
+        passed:
+          type: boolean
+  feature-request:
+    version: 1
+    description: "Forwarded feature request to backend"
+    schema:
+      type: object
+      required:
+        - feature_name
+        - acceptance_criteria
+      properties:
+        feature_name:
+          type: string
+        acceptance_criteria:
+          type: array
+          items:
+            type: string
+  implementation-result:
+    version: 1
+    description: "Expected result from backend"
+    schema:
+      type: object
+      required:
+        - status
+        - changed_files
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+            - partial
+            - failed
+        changed_files:
+          type: array
+          items:
+            type: string
+
+workflow:
+  test-plan:
+    description: "Create and review test plan"
+    steps:
+      - type: delegate
+        task: create-test-plan
+        from_agent: qa-lead
+  execute-tests:
+    description: "Execute tests, delegating implementation to backend"
+    steps:
+      - type: team_task
+        to_team: backend
+        workflow: implement
+        handoff: feature-request
+        expects: implementation-result
+        description: "Request backend to implement the feature before testing"
+
+policies: {}
+guardrails: {}

@@ -708,6 +708,100 @@
         "additionalProperties": {}
       }
     },
+    "team_interface": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "accepts": {
+          "type": "object",
+          "properties": {
+            "workflows": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "internal_workflow": {
+                    "type": "string"
+                  },
+                  "input_handoff": {
+                    "type": "string"
+                  },
+                  "output_handoff": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_handoff",
+                  "output_handoff"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "workflows"
+          ],
+          "additionalProperties": {}
+        },
+        "exposes": {
+          "type": "object",
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "artifacts"
+          ],
+          "additionalProperties": {}
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "additionalProperties": {}
+    },
+    "imports": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "interface": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "interface"
+        ],
+        "additionalProperties": {}
+      }
+    },
     "workflow": {
       "default": {},
       "type": "object",
@@ -909,6 +1003,41 @@
                   "required": [
                     "type",
                     "branches"
+                  ],
+                  "additionalProperties": {}
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "team_task"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "to_team": {
+                      "type": "string"
+                    },
+                    "workflow": {
+                      "type": "string"
+                    },
+                    "handoff": {
+                      "type": "string"
+                    },
+                    "expects": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "to_team",
+                    "workflow",
+                    "handoff",
+                    "expects"
                   ],
                   "additionalProperties": {}
                 }

@@ -249,6 +249,7 @@ const MERGE_SECTIONS = [
   "tools",
   "validations",
   "handoff_types",
+  "imports",
   "workflow",
   "policies",
   "guardrails",

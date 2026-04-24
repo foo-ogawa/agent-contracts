@@ -6,6 +6,8 @@ import { GuardrailPolicySchema, GuardrailSchema } from "./guardrail.js";
 import { PolicySchema } from "./policy.js";
 import { SystemSchema } from "./system.js";
 import { TaskSchema } from "./task.js";
+import { TeamImportSchema } from "./team-import.js";
+import { TeamInterfaceSchema } from "./team-interface.js";
 import { ToolSchema } from "./tool.js";
 import { ValidationSchema } from "./validation.js";
 import { WorkflowSchema } from "./workflow.js";
@@ -74,6 +76,8 @@ export const DslSchema = z
     tools: z.record(z.string(), ToolSchema).default({}),
     validations: z.record(z.string(), ValidationSchema).default({}),
     handoff_types: z.record(z.string(), HandoffTypeSchema).default({}),
+    team_interface: TeamInterfaceSchema.optional(),
+    imports: z.record(z.string(), TeamImportSchema).optional(),
     workflow: z.record(z.string(), WorkflowSchema).default({}),
     policies: z.record(z.string(), PolicySchema).default({}),
     guardrails: z.record(z.string(), GuardrailSchema).default({}),
