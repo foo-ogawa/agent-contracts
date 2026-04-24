@@ -34,14 +34,57 @@ export const RenderTargetSchema = z
 
 export type RenderTarget = z.infer<typeof RenderTargetSchema>;
 
-export const AgentContractsConfigSchema = z.object({
-  dsl: z.string(),
-  vars: z.record(z.string(), z.string()).optional(),
-  renders: z.array(RenderTargetSchema).default([]),
+export const TeamConfigSchema = z.object({
+  dsl: z.string().optional(),
   bindings: z.array(z.string()).default([]),
-  active_guardrail_policy: z.string().optional(),
+  vars: z.record(z.string(), z.string()).optional(),
   paths: z.record(z.string(), z.string()).optional(),
+  active_guardrail_policy: z.string().optional(),
+  interface_output: z.string().optional(),
 });
+
+export type TeamConfig = z.infer<typeof TeamConfigSchema>;
+
+export const AgentContractsConfigSchema = z
+  .object({
+    dsl: z.string().optional(),
+    vars: z.record(z.string(), z.string()).optional(),
+    renders: z.array(RenderTargetSchema).default([]),
+    bindings: z.array(z.string()).default([]),
+    active_guardrail_policy: z.string().optional(),
+    paths: z.record(z.string(), z.string()).optional(),
+    teams: z.record(z.string(), TeamConfigSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.dsl !== undefined && data.teams !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "dsl and teams are mutually exclusive",
+        path: ["teams"],
+      });
+      return;
+    }
+    if (data.dsl === undefined && data.teams === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Either dsl or teams must be specified",
+        path: [],
+      });
+      return;
+    }
+    if (data.teams) {
+      for (const [key, team] of Object.entries(data.teams)) {
+        if (key === "_defaults") continue;
+        if (team.dsl === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Team "${key}" must specify dsl`,
+            path: ["teams", key, "dsl"],
+          });
+        }
+      }
+    }
+  });
 
 export type AgentContractsConfig = z.infer<typeof AgentContractsConfigSchema>;
 
@@ -54,6 +97,15 @@ export interface ResolvedRenderTarget {
   skip_empty?: boolean;
 }
 
+export interface ResolvedTeamConfig {
+  dsl: string;
+  vars?: Record<string, string>;
+  bindings: string[];
+  activeGuardrailPolicy?: string;
+  paths?: Record<string, string>;
+  interfaceOutput?: string;
+}
+
 export interface ResolvedConfig {
   dsl: string;
   vars?: Record<string, string>;
@@ -62,4 +114,5 @@ export interface ResolvedConfig {
   bindings: string[];
   activeGuardrailPolicy?: string;
   paths?: Record<string, string>;
+  teams?: Record<string, ResolvedTeamConfig>;
 }

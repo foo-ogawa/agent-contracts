@@ -3,14 +3,16 @@ import { loadConfig, loadBindings, ConfigLoadError } from "../../config/index.js
 import { resolve, substituteVars } from "../../resolver/index.js";
 import { validateSchema } from "../../validator/index.js";
 import { renderFromConfig, checkDriftFromConfig, type RenderOptions } from "../../renderer/index.js";
+import { getTeamEntries, isMultiTeamConfig } from "../multi-team.js";
 
 export const renderCommand = new Command("render")
   .description("Render resolved DSL with Handlebars templates (requires config)")
   .option("-c, --config <path>", "Path to agent-contracts.config.yaml")
+  .option("--team <id>", "Limit to one team (multi-team config only)")
   .option("--check", "Check for drift without writing files", false)
   .option("--quiet", "Suppress output on success", false)
   .action(
-    async (opts: { config?: string; check: boolean; quiet: boolean }) => {
+    async (opts: { config?: string; team?: string; check: boolean; quiet: boolean }) => {
       try {
         const config = await loadConfig(opts.config);
         if (!config) {
@@ -18,6 +20,64 @@ export const renderCommand = new Command("render")
             "Error: agent-contracts.config.yaml not found. Use --config to specify path.\n",
           );
           process.exit(1);
+        }
+
+        if (isMultiTeamConfig(config)) {
+          const teamEntries = getTeamEntries(config, opts.team);
+          for (const [teamId, teamConfig] of teamEntries) {
+            if (!opts.quiet) process.stdout.write(`\n--- Team: ${teamId} ---\n`);
+            const resolved = await resolve(teamConfig.dsl);
+            const data = teamConfig.vars
+              ? substituteVars(resolved.data, teamConfig.vars)
+              : resolved.data;
+            const schemaResult = validateSchema(data);
+            if (!schemaResult.success) {
+              process.stderr.write(
+                `Schema validation failed for team ${teamId}. Run 'agent-contracts validate' for details.\n`,
+              );
+              process.exit(1);
+            }
+            let renderOptions: RenderOptions | undefined;
+            if (teamConfig.bindings.length > 0) {
+              const loadedBindings = await loadBindings(teamConfig.bindings);
+              renderOptions = {
+                loadedBindings,
+                activeGuardrailPolicy: teamConfig.activeGuardrailPolicy,
+              };
+            }
+            if (opts.check) {
+              const drift = await checkDriftFromConfig(
+                schemaResult.data!,
+                config.renders,
+                renderOptions,
+              );
+              if (drift.hasDrift) {
+                process.stderr.write(
+                  `Drift detected for team ${teamId} in the following files:\n`,
+                );
+                for (const f of drift.diffs) {
+                  process.stderr.write(`  ${f}\n`);
+                }
+                process.exit(1);
+              }
+              if (!opts.quiet) {
+                process.stdout.write("No drift detected.\n");
+              }
+            } else {
+              const files = await renderFromConfig(
+                schemaResult.data!,
+                config.renders,
+                renderOptions,
+              );
+              if (!opts.quiet) {
+                process.stdout.write(`Rendered ${files.length} file(s):\n`);
+                for (const f of files) {
+                  process.stdout.write(`  ${f}\n`);
+                }
+              }
+            }
+          }
+          return;
         }
 
         const resolved = await resolve(config.dsl);
