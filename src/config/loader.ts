@@ -1,7 +1,12 @@
 import { readFile, access } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { AgentContractsConfigSchema, type ResolvedConfig } from "./types.js";
+import {
+  AgentContractsConfigSchema,
+  type ResolvedConfig,
+  type ResolvedTeamConfig,
+  type TeamConfig,
+} from "./types.js";
 
 const DEFAULT_CONFIG_NAME = "agent-contracts.config.yaml";
 
@@ -22,6 +27,46 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function resolveTeamConfigs(
+  teams: Record<string, TeamConfig>,
+  configDir: string,
+): Record<string, ResolvedTeamConfig> {
+  const defaults = teams._defaults;
+  const result: Record<string, ResolvedTeamConfig> = {};
+
+  for (const [key, team] of Object.entries(teams)) {
+    if (key === "_defaults") continue;
+
+    const mergedBindings = [...(defaults?.bindings ?? []), ...team.bindings].map(
+      (b) => resolve(configDir, b),
+    );
+
+    const mergedVars =
+      defaults?.vars || team.vars
+        ? { ...(defaults?.vars ?? {}), ...(team.vars ?? {}) }
+        : undefined;
+
+    const mergedPaths =
+      defaults?.paths || team.paths
+        ? { ...(defaults?.paths ?? {}), ...(team.paths ?? {}) }
+        : undefined;
+
+    result[key] = {
+      dsl: resolve(configDir, team.dsl!),
+      bindings: mergedBindings,
+      vars: mergedVars,
+      activeGuardrailPolicy:
+        team.active_guardrail_policy ?? defaults?.active_guardrail_policy,
+      paths: mergedPaths,
+      interfaceOutput: team.interface_output
+        ? resolve(configDir, team.interface_output)
+        : undefined,
+    };
+  }
+
+  return result;
 }
 
 export async function loadConfig(
@@ -75,14 +120,29 @@ export async function loadConfig(
   const configDir = dirname(targetPath);
   const config = result.data;
 
+  const renders = config.renders.map((r) => ({
+    ...r,
+    template: resolve(configDir, r.template),
+    output: resolve(configDir, r.output),
+  }));
+
+  if (config.teams) {
+    return {
+      dsl: "",
+      vars: undefined,
+      renders,
+      configDir,
+      bindings: [],
+      activeGuardrailPolicy: undefined,
+      paths: undefined,
+      teams: resolveTeamConfigs(config.teams, configDir),
+    };
+  }
+
   return {
-    dsl: resolve(configDir, config.dsl),
+    dsl: resolve(configDir, config.dsl!),
     vars: config.vars,
-    renders: config.renders.map((r) => ({
-      ...r,
-      template: resolve(configDir, r.template),
-      output: resolve(configDir, r.output),
-    })),
+    renders,
     configDir,
     bindings: (config.bindings ?? []).map((b) => resolve(configDir, b)),
     activeGuardrailPolicy: config.active_guardrail_policy,

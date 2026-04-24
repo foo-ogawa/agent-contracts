@@ -994,6 +994,60 @@ This lets you generate static outputs for:
 
 all from the same resolved DSL.
 
+### Multi-team configuration
+
+When several teams (for example backend, QA, infra) are managed from one workspace, you can list every team in a single config file instead of maintaining separate configs.
+
+````yaml
+teams:
+  _defaults:
+    bindings:
+      - ./bindings/cursor.yaml
+    vars:
+      language: TypeScript
+    paths:
+      cursor_root: .cursor
+    active_guardrail_policy: default-enforcement
+
+  backend:
+    dsl: ./teams/backend/agent-contracts.yaml
+    interface_output: ./teams/backend/team-interface.yaml
+    bindings:
+      - ./teams/backend/bindings/observability.yaml
+    vars:
+      team_name: backend
+
+  qa:
+    dsl: ./teams/qa/agent-contracts.yaml
+    vars:
+      team_name: qa
+````
+
+**`_defaults`:** Reserved meta-entry in the `teams` map. It uses the same schema as team entries except `dsl` is not required. Values are inherited by all teams. The underscore prefix avoids colliding with real team IDs.
+
+**Merge with `_defaults`:**
+
+* `bindings` — `_defaults` bindings are prepended before team-specific bindings
+* `vars` — shallow merge; team values win
+* `paths` — shallow merge; team values win
+* `active_guardrail_policy` — team wins when present
+
+All commands accept `--team <id>` to run against a single team:
+
+````bash
+agent-contracts validate -c config.yaml              # all teams
+agent-contracts validate -c config.yaml --team backend  # one team
+agent-contracts check -c config.yaml --team qa          # one team
+````
+
+The `check` command also validates that imported interface files exist on disk (cross-team references).
+
+**Design constraints:**
+
+* `dsl` and `teams` are mutually exclusive at the config root
+* Every team except `_defaults` must specify `dsl`
+* Existing single-team configs (top-level `dsl` only) remain valid unchanged
+
 ### Render target options
 
 Each entry in `renders` supports these fields:
