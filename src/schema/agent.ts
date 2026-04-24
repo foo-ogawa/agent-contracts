@@ -51,6 +51,14 @@ export const AgentSchema = z
     rules: z.array(RuleSchema).optional(),
     anti_patterns: z.array(z.string()).optional(),
     escalation_criteria: z.array(EscalationCriterionSchema).optional(),
+    sections: z
+      .array(
+        z.object({
+          title: z.string(),
+          content: z.string(),
+        }),
+      )
+      .optional(),
     prerequisites: z.array(PrerequisiteSchema).optional(),
     guardrails: z.array(z.string()).optional(),
   })

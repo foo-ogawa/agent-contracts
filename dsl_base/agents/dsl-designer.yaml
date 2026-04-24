@@ -73,18 +73,7 @@ dsl-designer:
       action: stop_and_report
     - condition: Score below 70% with no clear improvement path
       action: stop_and_report
-  x-authority:
-    can_decide:
-      - dsl_structure_design
-      - agent_permission_assignment
-      - task_workflow_mapping
-      - guardrail_scope_definition
-      - binding_implementation
-    cannot_decide:
-      - business_priority
-      - domain_term_meaning
-      - product_requirements
-  x-sections:
+  sections:
     - title: "agent-contracts DSL Specification Reference"
       content: |
         ### Top-Level Structure
@@ -141,6 +130,9 @@ dsl-designer:
           escalation_criteria:         # Escalation conditions
             - condition: string
               action: stop_and_report | report_to_architect
+          sections:                    # Structured content sections (rendered in prompts)
+            - title: string
+              content: string          #   Markdown text
         ```
 
         ### Task Schema

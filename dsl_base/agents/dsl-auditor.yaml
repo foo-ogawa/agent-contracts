@@ -47,16 +47,7 @@ dsl-auditor:
       action: stop_and_report
     - condition: Structural defect detected in templates
       action: stop_and_report
-  x-authority:
-    can_decide:
-      - gap_classification
-      - improvement_priority
-      - fix_recommendation
-    cannot_decide:
-      - dsl_structure_change
-      - template_modification
-      - agent_permission_change
-  x-sections:
+  sections:
     - title: "Audit Procedure"
       content: |
         **Phase 1: Source Collection**

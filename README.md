@@ -180,6 +180,7 @@ An **Agent** defines who an execution entity is:
 * permissions
 * constraints
 * behavioral rules
+* structured content sections (reference material, procedures, criteria)
 
 ### Task
 
@@ -317,6 +318,7 @@ Design regressions become testable.
 ## Features
 
 * **Declarative YAML DSL** for multi-agent development workflows
+* **Agent `sections`** for embedding structured reference material, procedures, and criteria directly in agent definitions
 * **Static schema validation**
 * **Reference integrity checks**
 * **Semantic linting**
@@ -574,9 +576,11 @@ agents:
     constraints:
       - "Never write code directly"
 
-    x-identity: |
-      You act as the Architect. You NEVER implement or test directly.
-      Instead you delegate to specialist sub-agents.
+    sections:
+      - title: "Delegation Protocol"
+        content: |
+          You act as the Architect. You NEVER implement or test directly.
+          Instead you delegate to specialist sub-agents.
 ````
 
 ---
