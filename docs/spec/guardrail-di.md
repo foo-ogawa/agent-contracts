@@ -318,14 +318,24 @@ export const DslSchema = z
 
 ```typescript
 // src/config/types.ts
-export const AgentContractsConfigSchema = z.object({
-  dsl: z.string(),
+export const TeamConfigSchema = z.object({
+  dsl: z.string().optional(),
+  bindings: z.array(z.string()).default([]),
   vars: z.record(z.string(), z.string()).optional(),
-  renders: z.array(RenderTargetSchema).min(1),
-  bindings: z.array(z.string()).default([]),                   // NEW
-  active_guardrail_policy: z.string().optional(),              // NEW
-  paths: z.record(z.string(), z.string()).optional(),          // NEW
+  paths: z.record(z.string(), z.string()).optional(),
+  active_guardrail_policy: z.string().optional(),
+  interface_output: z.string().optional(),
 });
+
+export const AgentContractsConfigSchema = z.object({
+  dsl: z.string().optional(),
+  vars: z.record(z.string(), z.string()).optional(),
+  renders: z.array(RenderTargetSchema).default([]),
+  bindings: z.array(z.string()).default([]),
+  active_guardrail_policy: z.string().optional(),
+  paths: z.record(z.string(), z.string()).optional(),
+  teams: z.record(z.string(), TeamConfigSchema).optional(),    // NEW: multi-team
+}).superRefine(/* dsl ↔ teams mutual exclusion; each team (except _defaults) must set dsl */);
 ```
 
 ### 3.2 New Fields
@@ -335,6 +345,7 @@ export const AgentContractsConfigSchema = z.object({
 | `bindings` | no | Array of file paths to software binding YAML files |
 | `active_guardrail_policy` | no | Key in DSL `guardrail_policies` to use for generation |
 | `paths` | no | Logical root directory mapping for output path resolution |
+| `teams` | no | Map of team ID → team config; mutually exclusive with top-level `dsl` |
 
 ### 3.3 `paths` — Project Placement Knowledge
 
@@ -383,7 +394,7 @@ All new fields are optional with safe defaults:
 - `active_guardrail_policy` defaults to `undefined` (no policy applied)
 - `paths` defaults to `undefined` (binding targets used as-is)
 
-Existing configs without guardrail fields continue to work without modification. The `renders` field remains required with `.min(1)`.
+Existing configs without guardrail fields continue to work without modification. The `renders` field defaults to `[]`. When `teams` is present, top-level `dsl` is omitted; each team entry must specify its own `dsl`.
 
 ---
 

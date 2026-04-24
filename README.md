@@ -916,6 +916,8 @@ npx agent-contracts
 The `[path]` argument defaults to `agent-contracts.yaml` in the current directory.
 If `-c` / `--config` is specified, the DSL path from the config file is used.
 
+All commands also accept `--team <id>` to limit execution to a single team when using a [multi-team configuration](#multi-team-configuration).
+
 #### `resolve` options
 
 | Option | Description |
@@ -923,6 +925,7 @@ If `-c` / `--config` is specified, the DSL path from the config file is used.
 | `--format <text\|json>` | Output format (default: `text`) |
 | `--expand-defaults` | Expand all Zod default values in output. Fields like `required_validations: []`, `tags: []`, and `can_read_artifacts: []` are written explicitly instead of being silently applied by schema defaults. |
 | `-c, --config <path>` | Path to `agent-contracts.config.yaml` |
+| `--team <id>` | Limit to one team (multi-team config only) |
 
 #### `score` options
 
@@ -931,6 +934,7 @@ If `-c` / `--config` is specified, the DSL path from the config file is used.
 | `--format <text\|json>` | Output format (default: `text`) |
 | `--threshold <number>` | Minimum score; exit 1 if below (for CI gates) |
 | `-c, --config <path>` | Path to `agent-contracts.config.yaml` |
+| `--team <id>` | Limit to one team (multi-team config only) |
 
 The score command evaluates 7 dimensions:
 
