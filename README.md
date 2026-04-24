@@ -166,6 +166,8 @@ A working example is available in [`sample/`](./sample), including:
 * [`sample/templates`](./sample/templates)
 * [`sample/output`](./sample/output)
 
+A multi-team example is available in [`sample/multi-team/`](./sample/multi-team), demonstrating cross-team interface declaration and consumption.
+
 ---
 
 ## Core concepts
@@ -222,7 +224,7 @@ A **Workflow** defines a phase-level execution sequence:
 * `entry_conditions`
 * `trigger`
 * `external_participants` — actors/participants outside the agent system (e.g., User, external advisory)
-* ordered steps (delegate, gate, validation, decision)
+* ordered steps (`delegate`, `gate`, `team_task`, `decision`; legacy: `handoff`, `validation`)
 
 Workflow steps support additional properties:
 
@@ -332,7 +334,9 @@ Design regressions become testable.
 * **Guardrail policies** with configurable enforcement (block/warn/shadow/info)
 * **Software bindings** (DI) for tool-specific guardrail implementation (Cursor, Git, GitHub)
 * **Guardrail generation** from DSL + policy + bindings via `generate guardrails`
+* **Interface generation** from DSL via `generate interface` for cross-team contracts
 * **Flexible file splitting** via `$ref` (replacement), `$refs` (import + deep-merge), and JSON Pointer `$ref` (in-document)
+* **Multi-team collaboration** via `team_interface` (public boundary), `imports` (team consumption), and `team_task` (cross-team delegation)
 * **YAML safety linting** for reserved word collision detection across YAML 1.1/1.2
 * **`extensions` declarations** with scope, schema validation, and strict enforcement for custom `x-*` fields
 * **`resolve --expand-defaults`** to materialize all Zod schema defaults in output
@@ -368,6 +372,13 @@ artifacts: {}
 tools: {}
 validations: {}
 handoff_types: {}
+team_interface:             # optional — multi-team public boundary
+  version: 1
+  accepts:
+    workflows: {}
+  exposes:
+    artifacts: []
+imports: {}                 # optional — consumed team interfaces
 workflow: {}
 policies: {}
 guardrails: {}
@@ -830,6 +841,104 @@ Supported merge operators:
 
 ---
 
+## Multi-team collaboration
+
+`agent-contracts` supports multi-team workflows where teams declare public interfaces and consume each other's capabilities.
+
+### Team Interface
+
+A `team_interface` declares what a team exposes to the outside:
+
+````yaml
+team_interface:
+  version: 1
+  description: "Backend team public interface"
+  accepts:
+    workflows:
+      implement:
+        internal_workflow: feature-implement
+        input_handoff: feature-request
+        output_handoff: implementation-result
+        description: "Request a feature implementation"
+  exposes:
+    artifacts:
+      - api-contract
+      - build-report
+  constraints:
+    - "feature-request must include acceptance_criteria"
+````
+
+Key design decisions:
+
+* **Workflow-level accepts** — external callers invoke a workflow, not individual tasks
+* **Explicit mapping** — `internal_workflow` separates the stable public name from the internal workflow ID
+* **Listing-based exposure** — an entity is external only if listed in `team_interface`
+
+### Imports
+
+A team consumes another team's generated interface via `imports`:
+
+````yaml
+imports:
+  backend:
+    interface: ./teams/backend/team-interface.yaml
+    version: ">=1"
+````
+
+Imported entities are referenced as `{team_id}.{public_name}` in cross-team workflow steps.
+
+### `team_task` workflow step
+
+Cross-team delegation uses the `team_task` step type:
+
+````yaml
+workflow:
+  execute-tests:
+    steps:
+      - type: team_task
+        to_team: backend
+        workflow: implement
+        handoff: feature-request
+        expects: implementation-result
+        description: "Delegate implementation to backend team"
+````
+
+| Field | Description |
+|-------|-------------|
+| `to_team` | Team ID from `imports` |
+| `workflow` | Public workflow name from the imported interface |
+| `handoff` | Handoff type for the request |
+| `expects` | Handoff type for the response |
+
+### Generating a team interface
+
+The `generate interface` command produces a self-contained `team-interface.yaml`:
+
+````bash
+agent-contracts generate interface -c agent-contracts.config.yaml
+agent-contracts generate interface -c agent-contracts.config.yaml -o custom-output.yaml
+agent-contracts generate interface -c agent-contracts.config.yaml --dry-run
+````
+
+The output includes:
+
+* Workflow entries with handoff key references
+* A `handoff_types` section containing only schemas referenced by external workflows
+* An `exposes.artifacts` section with type, description, and states
+* Metadata (`team_id`, `team_name`, `version`, `generated_at`)
+
+### Interface drift detection
+
+The `check` command detects drift between the declared `team_interface` and the generated `team-interface.yaml`:
+
+````bash
+agent-contracts check -c agent-contracts.config.yaml
+````
+
+If a `team-interface.yaml` exists and differs from what would be regenerated, the check reports drift.
+
+---
+
 ## Variable substitution
 
 When using `extends` to share a base DSL across projects, base definitions often contain values that differ per project (project name, language, repository URL, etc.).
@@ -911,6 +1020,7 @@ npx agent-contracts
 | `agent-contracts render`          | Render outputs from config                             |
 | `agent-contracts score [path]`    | Calculate DSL completeness score                       |
 | `agent-contracts generate guardrails` | Generate guardrail artifacts from bindings       |
+| `agent-contracts generate interface` | Generate team interface YAML from DSL |
 | `agent-contracts check`           | Run resolve → validate → lint → render --check         |
 
 The `[path]` argument defaults to `agent-contracts.yaml` in the current directory.
@@ -957,6 +1067,9 @@ agent-contracts score --format json
 agent-contracts render -c agent-contracts.config.yaml
 agent-contracts render -c agent-contracts.config.yaml --check
 agent-contracts check -c agent-contracts.config.yaml --strict
+agent-contracts generate interface -c agent-contracts.config.yaml
+agent-contracts generate interface -c agent-contracts.config.yaml --dry-run
+agent-contracts generate interface -c agent-contracts.config.yaml --format json
 ````
 
 ---
@@ -1414,6 +1527,8 @@ Checks:
 * owner / producer / editor / consumer validity
 * handoff schema consistency (`required` vs. `properties` alignment)
 * permission alignment between agents and artifacts
+* `team_interface` internal consistency (workflows, handoffs, and exposed artifacts exist in the DSL)
+* cross-team reference validity (`team_task` targets exist in `imports`)
 
 ### Semantic lint
 
