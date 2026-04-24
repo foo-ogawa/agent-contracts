@@ -1,6 +1,5 @@
 # Multi-team configuration example
 # Rename to agent-contracts.config.yaml in your project, or use -c to specify.
-# Each team uses the sample DSL; real setups usually point each team at its own YAML.
 
 teams:
   _defaults:
@@ -8,11 +7,12 @@ teams:
       language: TypeScript
 
   backend:
-    dsl: ../agent-contracts.yaml
+    dsl: ./backend-team.yaml
+    interface_output: ./backend-team-interface.yaml
     vars:
       team_name: backend
 
   qa:
-    dsl: ../agent-contracts.yaml
+    dsl: ./qa-consumer.yaml
     vars:
       team_name: qa

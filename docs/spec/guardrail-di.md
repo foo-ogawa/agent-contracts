@@ -301,11 +301,19 @@ export const DslSchema = z
     tools: z.record(z.string(), ToolSchema).default({}),
     validations: z.record(z.string(), ValidationSchema).default({}),
     handoff_types: z.record(z.string(), HandoffTypeSchema).default({}),
+    team_interface: TeamInterfaceSchema.optional(),
+    imports: z.record(z.string(), TeamImportSchema).optional(),
     workflow: z.record(z.string(), WorkflowSchema).default({}),
     policies: z.record(z.string(), PolicySchema).default({}),
-    guardrails: z.record(z.string(), GuardrailSchema).default({}),             // NEW
-    guardrail_policies: z.record(z.string(), GuardrailPolicySchema).default({}), // NEW
+    guardrails: z.record(z.string(), GuardrailSchema).default({}),
+    guardrail_policies: z
+      .record(z.string(), GuardrailPolicySchema)
+      .default({}),
     components: ComponentsSchema.default({ schemas: {} }),
+    extensions: z
+      .record(z.string(), XExtensionDeclSchema)
+      .default({}),
+    extensions_strict: z.boolean().default(false),
   })
   .passthrough();
 ```
