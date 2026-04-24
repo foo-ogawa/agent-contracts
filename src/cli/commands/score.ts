@@ -5,6 +5,7 @@ import { validateSchema } from "../../validator/index.js";
 import { score } from "../../scorer/index.js";
 import type { ScoreResult } from "../../scorer/index.js";
 import type { OutputFormat } from "../format.js";
+import { getTeamEntries, isMultiTeamConfig } from "../multi-team.js";
 
 const DIR_DEFAULT = "agent-contracts.yaml";
 
@@ -37,6 +38,7 @@ export const scoreCommand = new Command("score")
   .description("Calculate DSL completeness score")
   .argument("[dir]", "Path to agent-contracts.yaml", DIR_DEFAULT)
   .option("-c, --config <path>", "Path to agent-contracts.config.yaml")
+  .option("--team <id>", "Limit to one team (multi-team config only)")
   .option("--format <format>", "Output format (text|json)", "text")
   .option("--threshold <number>", "Minimum score (exit 1 if below)", undefined)
   .action(
@@ -44,12 +46,64 @@ export const scoreCommand = new Command("score")
       dir: string,
       opts: {
         config?: string;
+        team?: string;
         format: OutputFormat;
         threshold?: string;
       },
     ) => {
       try {
         const config = await loadConfig(opts.config);
+
+        if (config !== null && isMultiTeamConfig(config)) {
+          const teamEntries = getTeamEntries(config, opts.team);
+          let thresholdNum: number | undefined;
+          if (opts.threshold !== undefined) {
+            thresholdNum = parseInt(opts.threshold, 10);
+            if (isNaN(thresholdNum)) {
+              process.stderr.write(
+                `Error: --threshold must be a number, got "${opts.threshold}"\n`,
+              );
+              process.exit(1);
+            }
+          }
+
+          let hasErrors = false;
+          for (const [teamId, teamConfig] of teamEntries) {
+            process.stdout.write(`\n--- Team: ${teamId} ---\n`);
+            const resolved = await resolve(teamConfig.dsl);
+            const data = teamConfig.vars
+              ? substituteVars(resolved.data, teamConfig.vars)
+              : resolved.data;
+            const schemaResult = validateSchema(data);
+
+            if (!schemaResult.success) {
+              const issues = schemaResult.diagnostics
+                .map((d) => `  ${d.path}: ${d.message}`)
+                .join("\n");
+              process.stderr.write(`Schema validation failed:\n${issues}\n`);
+              hasErrors = true;
+              continue;
+            }
+
+            const result = score(schemaResult.data!);
+
+            if (opts.format === "json") {
+              process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+            } else {
+              process.stdout.write(formatText(result) + "\n");
+            }
+
+            if (thresholdNum !== undefined && result.overall < thresholdNum) {
+              process.stderr.write(
+                `Score ${result.overall} is below threshold ${thresholdNum}\n`,
+              );
+              hasErrors = true;
+            }
+          }
+          if (hasErrors) process.exit(1);
+          return;
+        }
+
         const dslPath = resolveDslPath(dir, DIR_DEFAULT, config);
         const resolved = await resolve(dslPath);
         const data = config?.vars
