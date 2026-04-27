@@ -799,6 +799,8 @@ export function buildPerAgentContext(
     ...agent.can_return_handoffs,
     ...receivableTasks.map((t) => t.invocation_handoff),
     ...receivableTasks.map((t) => t.result_handoff),
+    ...delegatableTasks.map((t) => t.invocation_handoff),
+    ...delegatableTasks.map((t) => t.result_handoff),
   ]);
   const relatedHandoffTypes: Dsl["handoff_types"] = {};
   for (const [kind, ht] of Object.entries(dsl.handoff_types)) {
