@@ -175,6 +175,44 @@ describe("buildPerAgentContext", () => {
     expect(entry.blocking).toBe(true);
   });
 
+  it("includes handoff types from delegatable tasks", () => {
+    const dsl = createMinimalDsl();
+    dsl.handoff_types["delegation-request"] = {
+      version: 1,
+      description: "Delegation invocation",
+      schema: { properties: { target: { type: "string" } } },
+    };
+    dsl.handoff_types["delegation-result"] = {
+      version: 1,
+      description: "Delegation result",
+      schema: { properties: { status: { type: "string" } } },
+    };
+    dsl.tasks["delegated-work"] = {
+      description: "Work delegated by coordinator",
+      target_agent: "dev",
+      allowed_from_agents: ["coordinator"],
+      workflow: "implement",
+      input_artifacts: [],
+      invocation_handoff: "delegation-request",
+      result_handoff: "delegation-result",
+    };
+    dsl.agents["coordinator"] = {
+      role_name: "Coordinator",
+      purpose: "Dispatch only",
+      can_read_artifacts: [],
+      can_write_artifacts: [],
+      can_execute_tools: [],
+      can_perform_validations: [],
+      can_invoke_agents: ["dev"],
+      can_return_handoffs: [],
+    };
+    const ctx = buildPerAgentContext(dsl, { ...dsl.agents["coordinator"], id: "coordinator" });
+    expect(ctx.relatedHandoffTypes).toHaveProperty("delegation-request");
+    expect(ctx.relatedHandoffTypes).toHaveProperty("delegation-result");
+    expect(ctx.delegatableTasks).toHaveLength(1);
+    expect(ctx.delegatableTasks[0].id).toBe("delegated-work");
+  });
+
   it("has empty relatedValidations when agent runs no validations", () => {
     const dsl = createMinimalDsl();
     const ctx = buildPerAgentContext(dsl, { ...dsl.agents["dev"], id: "dev" });
