@@ -1005,6 +1005,10 @@ VarsSubstitutionError: Undefined variable "repo_url" in value "Repository: ${var
 
 ## CLI
 
+For the full CLI reference with all commands, options, arguments, exit codes, and AI agent policies, see the [CLI Reference](docs/cli-reference.md).
+
+The CLI contract specification is defined in [`cli-contract.yaml`](cli-contract.yaml) using [CLI Contracts](https://github.com/foo-ogawa/cli-contracts).
+
 ### Installation
 
 ````bash

@@ -1,0 +1,14 @@
+version: 0.1.0
+
+input:
+  files:
+    - cli-contract.yaml
+
+generators:
+  markdown:
+    enabled: true
+    output: ./docs/cli-reference.md
+    templates: builtin:markdown
+    options:
+      includeSchemas: false
+      includeExtensions: true
