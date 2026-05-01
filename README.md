@@ -229,7 +229,9 @@ A **Workflow** defines a phase-level execution sequence:
 Workflow steps support additional properties:
 
 * `group` — consecutive steps with the same group are rendered as `par` (parallel) blocks in sequence diagrams
-* `retry` (delegate steps) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`
+* `max_retries` (delegate steps) — maximum number of full task re-executions (new sessions) allowed per step. Defaults to `0` (no retries), or `1` when a `retry` block is present
+* `max_follow_ups` (delegate steps) — maximum number of lightweight same-session follow-up messages for output format corrections
+* `retry` (delegate steps) — defines a conditional retry loop with `condition`, `fix_task`, and optional `revalidate_task`. These are rendered as recovery instructions in the LLM prompt
 * `routing_key` (decision steps) — the field that determines branch selection. The legacy field `on` is still accepted but deprecated due to YAML 1.1 reserved word collision
 
 ### Validation

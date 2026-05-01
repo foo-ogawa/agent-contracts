@@ -847,6 +847,16 @@
                     "group": {
                       "type": "string"
                     },
+                    "max_retries": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "max_follow_ups": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "retry": {
                       "type": "object",
                       "properties": {

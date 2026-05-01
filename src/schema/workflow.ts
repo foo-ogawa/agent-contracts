@@ -22,6 +22,8 @@ const WorkflowDelegateStepSchema = z
     task: z.string(),
     from_agent: z.string(),
     group: z.string().optional(),
+    max_retries: z.number().int().min(0).optional(),
+    max_follow_ups: z.number().int().min(0).optional(),
     retry: RetrySchema.optional(),
   })
   .passthrough();
